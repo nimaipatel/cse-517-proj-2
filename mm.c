@@ -1,10 +1,10 @@
 /*
  * mm.c
  *
- * Name 1: [FILL IN]
- * PSU ID 1: [FILL IN]
+ * Name 1: Nimai Patel
+ * PSU ID 1: nmp5838
  *
- * Name 2: [FILL IN]
+ * Name 2: Manay Lodha
  * PSU ID 2: [FILL IN]
  *
  * NOTE TO STUDENTS: Replace this header comment with your own header
@@ -54,6 +54,25 @@
 /* What is the correct alignment? */
 #define ALIGNMENT 16
 
+
+#define INITIAL_HEAP_SIZE 0x100
+
+
+typedef struct {
+    u_int64_t size;
+    u_int64_t alloc;
+} Tag;
+
+
+typedef struct {
+    void *prev;
+    void *next;
+} PointerPair;
+
+
+static void *free_list_head = NULL;
+
+
 /* rounds up to the nearest multiple of ALIGNMENT */
 static size_t align(size_t x)
 {
@@ -65,7 +84,34 @@ static size_t align(size_t x)
  */
 bool mm_init(void)
 {
-    /* IMPLEMENT THIS */
+    dbg_assert(INITIAL_HEAP_SIZE % ALIGNMENT == 0);
+    dbg_assert(sizeof(Tag) == ALIGNMENT);
+    dbg_assert(sizeof(PointerPair) == ALIGNMENT);
+
+    if (free_list_head) {
+        return false;
+    }
+
+    Tag *p = mem_sbrk(INITIAL_HEAP_SIZE);
+    if (p == NULL) {
+        return false;
+    }
+
+    Tag *header = p;
+    PointerPair *pair = (PointerPair *)(p + 1);
+    Tag *footer = header + (INITIAL_HEAP_SIZE / ALIGNMENT - 1);
+
+    header->size = INITIAL_HEAP_SIZE;
+    header->alloc = false;
+
+    pair->next = NULL;
+    pair->prev = NULL;
+
+    footer->size = INITIAL_HEAP_SIZE;
+    footer->alloc = false;
+
+    free_list_head = p;
+
     return true;
 }
 
