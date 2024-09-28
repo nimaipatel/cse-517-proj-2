@@ -5,7 +5,7 @@
  * PSU ID 1: nmp5838
  *
  * Name 2: Manay Lodha
- * PSU ID 2: [FILL IN]
+ * PSU ID 2: mnl5238
  *
  * NOTE TO STUDENTS: Replace this header comment with your own header
  * comment that gives a high level description of your solution.
