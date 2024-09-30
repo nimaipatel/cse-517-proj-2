@@ -197,32 +197,18 @@ bool mm_init(void)
         return false;
     }
 
-    u_int64_t *iter = heap_start;
+    u_int64_t *words = heap_start;
 
-    // prologue header
-    *iter = Pack_Size_Alloc(0, true);
-    iter += 1;
+    // prologue header, simplifies the case where we call Block_Get_Prev_Adj()
+    // on the block right after this...
+    words[0] = Pack_Size_Alloc(0, true);
 
-    free_list_head = iter;
+    free_list_head = &words[1];
+    Block_Set_Size_Alloc(free_list_head, MIN_BLOCK_SIZE, false);
 
-    // size and alloc for first block
-    *iter = Pack_Size_Alloc(MIN_BLOCK_SIZE, false);
-    iter += 1;
-
-    // pointer to next previous block (NULL)
-    *iter = (u_int64_t)NULL;
-    iter += 1;
-
-    // pointer to next next block (NULL)
-    *iter = (u_int64_t)NULL;
-    iter += 1;
-
-    // size and alloc for first block
-    *iter = Pack_Size_Alloc(MIN_BLOCK_SIZE, false);
-    iter += 1;
-
-    // epilogue header
-    *iter = Pack_Size_Alloc(0, true);
+    // epilogue header, simplifies the case where we call Block_Get_Next_Adj()
+    // on the block right before this...
+    words[5] = Pack_Size_Alloc(0, true);
 
     return true;
 }
