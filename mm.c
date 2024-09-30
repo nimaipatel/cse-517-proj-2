@@ -61,18 +61,6 @@
 #define MIN_BLOCK_SIZE (4 * WORD_SIZE)
 
 
-typedef struct {
-    u_int64_t size;
-    u_int64_t alloc;
-} Tag;
-
-
-typedef struct {
-    void *prev;
-    void *next;
-} PointerPair;
-
-
 static void *free_list_head = NULL;
 
 static void *heap_start = NULL;
@@ -89,13 +77,13 @@ static bool in_heap(const void* p)
 
 
 /* rounds up to the nearest multiple of ALIGNMENT */
-static size_t align(size_t x)
+static size_t align(const size_t x)
 {
     return ALIGNMENT * ((x+ALIGNMENT-1)/ALIGNMENT);
 }
 
 
-static inline u_int64_t Pack_Size_Alloc(u_int64_t size, bool alloc)
+static inline u_int64_t Pack_Size_Alloc(const u_int64_t size, const bool alloc)
 {
     dbg_assert(size < ((u_int64_t)1 << 63) - 1);
 
@@ -103,75 +91,75 @@ static inline u_int64_t Pack_Size_Alloc(u_int64_t size, bool alloc)
 }
 
 
-static inline bool Tag_Get_Alloc(u_int64_t word)
+static inline bool Tag_Get_Alloc(const u_int64_t word)
 {
     return word & 1;
 }
 
 
-static inline u_int64_t Tag_Get_Size(u_int64_t word)
+static inline u_int64_t Tag_Get_Size(const u_int64_t word)
 {
     return word >> 1;
 }
 
 
-static inline u_int64_t Block_Get_Size(void *block)
+static inline u_int64_t Block_Get_Size(const void *block)
 {
-    u_int64_t *words = block;
-    u_int64_t size = Tag_Get_Size(words[0]);
+    const u_int64_t *words = block;
+    const u_int64_t size = Tag_Get_Size(words[0]);
 #ifdef DEBUG
     // check block size stored in footer...
-    u_int64_t footer = words[size / WORD_SIZE - 1];
+    const u_int64_t footer = words[size / WORD_SIZE - 1];
     dbg_assert(size == Tag_Get_Size(footer));
 #endif
     return size;
 }
 
 
-static inline bool Block_Get_Alloc(void *block)
+static inline bool Block_Get_Alloc(const void *block)
 {
-    u_int64_t *words = block;
-    bool alloc = Tag_Get_Alloc(words[0]);
+    const u_int64_t *words = block;
+    const bool alloc = Tag_Get_Alloc(words[0]);
 #ifdef DEBUG
     // check alloc status stored in footer...
-    u_int64_t size = Tag_Get_Size(words[0]);
-    u_int64_t footer = words[size / WORD_SIZE - 1];
+    const u_int64_t size = Tag_Get_Size(words[0]);
+    const u_int64_t footer = words[size / WORD_SIZE - 1];
     dbg_assert(alloc == Tag_Get_Alloc(footer));
 #endif
     return alloc;
 }
 
 
-static inline void *Block_Get_Prev_Free(void *block)
+static inline void *Block_Get_Prev_Free(const void *block)
 {
-    u_int64_t *words = block;
+    const u_int64_t *words = block;
     return (void *)words[1];
 }
 
 
-static inline void *Block_Get_Next_Free(void *block)
+static inline void *Block_Get_Next_Free(const void *block)
 {
-    u_int64_t *words = block;
+    const u_int64_t *words = block;
     return (void *)words[2];
 }
 
 
-static inline void *Block_Get_Next_Adj(void *block)
+static inline void *Block_Get_Next_Adj(const void *block)
 {
-    u_int64_t size = Block_Get_Size(block);
+    const u_int64_t size = Block_Get_Size(block);
     return (char *)block + size;
 }
 
 
-static inline void *Block_Get_Prev_Adj(void *block)
+static inline void *Block_Get_Prev_Adj(const void *block)
 {
-    u_int64_t *words = block;
-    u_int64_t prev_footer = words[-1];
+    const u_int64_t *words = block;
+    const u_int64_t prev_footer = words[-1];
     return (char *)block - Tag_Get_Size(prev_footer);
 }
 
 
-static inline void Block_Set_Size_Alloc(void *block, u_int64_t size, bool alloc)
+static inline void Block_Set_Size_Alloc(void *block, const u_int64_t size, const bool alloc)
 {
     dbg_assert(size % (2 * WORD_SIZE) == 0);
 
@@ -187,6 +175,7 @@ static void Block_Unlink_Free_List(void *block)
     // TODO
     assert(false);
 }
+
 
 static void Block_Coalesce(void *block)
 {
@@ -224,7 +213,7 @@ bool mm_init(void)
 }
 
 
-static void Block_Allocate(void *block, u_int64_t size)
+static void Block_Allocate(void *block, const u_int64_t size)
 {
     dbg_assert(Block_Get_Alloc(block) == false);
 
