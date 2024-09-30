@@ -208,6 +208,26 @@ static void Block_Coalesce(void *block)
     assert(false);
 }
 
+
+static void *Heap_Grow(u_int64_t size)
+{
+    dbg_assert(size % (2 * WORD_SIZE) == 0);
+
+    void *block = mem_sbrk(size);
+    if (block == NULL) {
+        return NULL;
+    }
+
+    Block_Set_Size_Alloc(block, size, false);
+
+    u_int64_t *epilogue_header = Block_Get_Next_Adj(block);
+    *epilogue_header = Pack_Size_Alloc(0, true);
+
+    // TODO: coalesce this block
+    return block;
+}
+
+
 /*
  * Initialize: returns false on error, true on success.
  */
@@ -233,6 +253,8 @@ bool mm_init(void)
     // epilogue header, simplifies the case where we call Block_Get_Next_Adj()
     // on the block right before this...
     words[5] = Pack_Size_Alloc(0, true);
+
+    // TODO: store result of Pack_Size_Alloc(0, true) as a special constant...
 
     return true;
 }
