@@ -251,6 +251,7 @@ void *malloc(size_t size)
 
     void *iter = free_list_head;
     while (iter &&
+            // TODO: how to make this check only in debug mode?
             Block_Get_Alloc(iter) == false &&
             Block_Get_Size(iter) < size) {
         iter = Block_Get_Next_Free(iter);
@@ -258,6 +259,8 @@ void *malloc(size_t size)
 
     if (iter) {
         // found a free block of suitable size...
+        // TODO
+        assert(false);
     } else {
         // couldn't find any free block, need to raise heap...
         // TODO
