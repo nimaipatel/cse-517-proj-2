@@ -95,6 +95,14 @@ static size_t align(size_t x)
 }
 
 
+static inline u_int64_t Pack_Size_Alloc(u_int64_t size, bool alloc)
+{
+    dbg_assert(size < ((u_int64_t)1 << 63) - 1);
+
+    return (size << 1 | (u_int64_t)alloc);
+}
+
+
 static inline bool Word_Get_Alloc(u_int64_t word)
 {
     return word & 1;
@@ -110,45 +118,71 @@ static inline u_int64_t Word_Get_Size(u_int64_t word)
 static inline u_int64_t Block_Get_Size(void *block)
 {
     u_int64_t *words = block;
+    u_int64_t size = Word_Get_Size(words[0]);
 #ifdef DEBUG
-    // TODO: check block size stored in footer...
+    // check block size stored in footer...
+    u_int64_t footer = words[size / WORD_SIZE - 1];
+    dbg_assert(size == Word_Get_Size(footer));
 #endif
-    return Word_Get_Size(words[0]);
+    return size;
 }
 
 
 static inline bool Block_Get_Alloc(void *block)
 {
     u_int64_t *words = block;
+    bool alloc = Word_Get_Alloc(words[0]);
 #ifdef DEBUG
-    // TODO: check alloc status stored in footer...
+    // check alloc status stored in footer...
+    u_int64_t size = Word_Get_Size(words[0]);
+    u_int64_t footer = words[size / WORD_SIZE - 1];
+    dbg_assert(alloc == Word_Get_Alloc(footer));
 #endif
-    return Word_Get_Size(words[0]);
-    return Word_Get_Size(words[0]);
+    return alloc;
 }
 
 
-static inline void *Block_Get_Prev(void *block)
+static inline void *Block_Get_Prev_Free(void *block)
 {
     u_int64_t *words = block;
     return (void *)words[1];
 }
 
 
-static inline void *Block_Get_Next(void *block)
+static inline void *Block_Get_Next_Free(void *block)
 {
     u_int64_t *words = block;
     return (void *)words[2];
 }
 
 
-static inline u_int64_t Pack_Size_Alloc(u_int64_t size, bool alloc)
+static inline void *Block_Get_Next_Adj(void *block)
 {
-    dbg_assert(size < ((u_int64_t)1 << 63));
-
-    return (size << 1 | (u_int64_t)alloc);
+    u_int64_t size = Block_Get_Size(block);
+    return (((char *)block) + size);
 }
 
+
+static inline void *Block_Get_Prev_Adj(void *block)
+{
+}
+
+
+static inline void Block_Set_Size_Alloc(void *block, u_int64_t size, bool alloc)
+{
+    dbg_assert(size % (2 * WORD_SIZE) == 0);
+
+    u_int64_t *words = block;
+    const u_int64_t size_alloc_word = Pack_Size_Alloc(size, alloc);
+    words[0] = size_alloc_word;
+    words[size / WORD_SIZE - 1] = size_alloc_word;
+}
+
+static void Block_Unlink_Free_List(void *block)
+{
+    // TODO
+    assert(false);
+}
 
 /*
  * Initialize: returns false on error, true on success.
@@ -194,6 +228,25 @@ bool mm_init(void)
 }
 
 
+static void Block_Allocate(void *block, u_int64_t size)
+{
+    dbg_assert(Block_Get_Alloc(block) == false);
+
+    u_int64_t block_size = Block_Get_Size(block);
+
+    if (block_size - size < MIN_BLOCK_SIZE) {
+        // the block doesn't have excess space to split and produce a free
+        // block...
+        Block_Set_Size_Alloc(block, block_size, true);
+        Block_Unlink_Free_List(block);
+    } else {
+        // the block has excess space, it needs to be split to maximize
+        // utilization...
+        Block_Set_Size_Alloc(block, size, true);
+    }
+}
+
+
 /*
  * malloc
  */
@@ -214,14 +267,15 @@ void *malloc(size_t size)
     while (iter &&
             Block_Get_Alloc(iter) == false &&
             Block_Get_Size(iter) < size) {
-        iter = Block_Get_Next(iter);
+        iter = Block_Get_Next_Free(iter);
     }
 
     if (iter) {
         // found a free block of suitable size...
     } else {
-        assert(false);
         // couldn't find any free block, need to raise heap...
+        // TODO
+        assert(false);
     }
 
     return result;
