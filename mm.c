@@ -65,6 +65,7 @@ static void *free_list_head = NULL;
 
 static void *heap_start = NULL;
 
+static void Heap_Print(void);
 
 /*
  * Returns whether the pointer is in the heap.
@@ -186,18 +187,31 @@ static inline void Block_Set_Size_Alloc(void *block, const u_int64_t size, const
 
 static void Block_Unlink_Free_List(const void *block)
 {
+    dbg_assert(free_list_head != NULL);
+
     void *prev = Block_Get_Prev_Free(block);
     void *next = Block_Get_Next_Free(block);
 
-    if (prev) {
-        Block_Set_Next_Free(prev, next);
-    } else {
+    if (!prev && !next) {
         dbg_assert(free_list_head == block);
-        free_list_head = next;
-    }
 
-    if (next) {
+        free_list_head = NULL;
+
+    } else if (!prev && next) {
+        dbg_assert(free_list_head == block);
+
+        free_list_head = next;
+        Block_Set_Prev_Free(free_list_head, NULL);
+
+    } else if (prev && !next) {
+
+        Block_Set_Next_Free(prev, NULL);
+
+    } else {
+
         Block_Set_Prev_Free(next, prev);
+        Block_Set_Next_Free(prev, next);
+
     }
 }
 
@@ -205,17 +219,14 @@ static void Block_Unlink_Free_List(const void *block)
 static void Block_Prepend_Free_List(void *block)
 {
     if (free_list_head == NULL) {
-        free_list_head = block;
-        Block_Set_Prev_Free(block, NULL);
         Block_Set_Next_Free(block, NULL);
-    } else {
-        void *old_head = free_list_head;
-
+        Block_Set_Prev_Free(block, NULL);
         free_list_head = block;
-        Block_Set_Prev_Free(free_list_head, NULL);
-        Block_Set_Prev_Free(old_head, NULL);
-
-        Block_Set_Prev_Free(old_head, block);
+    } else {
+        Block_Set_Prev_Free(block, NULL);
+        Block_Set_Next_Free(block, free_list_head);
+        Block_Set_Prev_Free(free_list_head, block);
+        free_list_head = block;
     }
 }
 
@@ -288,6 +299,8 @@ bool mm_init(void)
 {
     dbg_assert(MIN_BLOCK_SIZE % ALIGNMENT == 0);
 
+    // one word for padding, one free block of minimum size and special
+    // epilogue tag at the end
     heap_start = mem_sbrk(WORD_SIZE + MIN_BLOCK_SIZE + WORD_SIZE);
     if (heap_start == NULL) {
         return false;
@@ -299,6 +312,7 @@ bool mm_init(void)
     words[0] = 0;
 
     Block_Set_Size_Alloc(&words[1], MIN_BLOCK_SIZE, false);
+    free_list_head = NULL;
     Block_Prepend_Free_List(&words[1]);
 
     words[7] = Pack_Size_Alloc(0, true);
@@ -356,7 +370,7 @@ void *malloc(size_t size)
     if (iter) {
         // found a free block of suitable size...
         Block_Allocate(iter, size);
-        return (char*)iter + WORD_SIZE;
+        return (char *)iter + WORD_SIZE;
     } else {
         // couldn't find any free block, need to raise heap...
         void *block = Heap_Grow(size);
@@ -364,7 +378,7 @@ void *malloc(size_t size)
             return NULL;
         }
         Block_Allocate(block, size);
-        return (char*)block + WORD_SIZE;
+        return (char *)block + WORD_SIZE;
     }
 }
 
@@ -373,8 +387,15 @@ void *malloc(size_t size)
  */
 void free(void* ptr)
 {
-    /* IMPLEMENT THIS */
-    return;
+    if (!ptr) {
+        return;
+    }
+
+    void *block = (char *)ptr - WORD_SIZE;
+
+    const u_int64_t size = Block_Get_Size(block);
+    Block_Set_Size_Alloc(block, size, false);
+    Block_Coalesce(block);
 }
 
 /*
@@ -409,6 +430,53 @@ static bool aligned(const void* p)
 {
     size_t ip = (size_t) p;
     return align(ip) == ip;
+}
+
+static void Heap_Print(void)
+{
+    u_int64_t *words = heap_start;
+    
+    dbg_assert(words[0] == 0);
+
+    dbg_printf("\nHeap start...\n");
+
+    dbg_printf("%p\t0x%016x\tPadding for alignment\n", words, words[0]);
+
+    u_int64_t *iter = &words[1];
+    do {
+        const u_int64_t size = Block_Get_Size(iter);
+        const bool alloc = Block_Get_Alloc(iter);
+
+        dbg_printf("%p\t0x%016x\tsize = 0x%x\talloc = %d\n", iter, *iter, size, alloc);
+
+        iter = Block_Get_Next_Adj(iter);
+    } while (iter != Block_Get_Next_Adj(iter));
+
+    const u_int64_t size = Block_Get_Size(iter);
+    const bool alloc = Block_Get_Alloc(iter);
+
+    dbg_printf("%p\t0x%016x\tsize = 0x%x\talloc = %d\tEpilogue...\n", iter, *iter, size, alloc);
+
+    dbg_printf("heap end...\n\n");
+
+}
+
+static void Free_List_Print(void)
+{
+    u_int64_t *block = free_list_head;
+
+    dbg_printf("\nFree list start...\n");
+
+    while(block) {
+        const u_int64_t size = Block_Get_Size(block);
+        const bool alloc = Block_Get_Alloc(block);
+
+        dbg_printf("%p\t0x%016x\tsize = 0x%x\talloc = %d\n", block, *block, size, alloc);
+
+        block = Block_Get_Next_Free(block);
+    }
+
+    dbg_printf("Free list end...\n\n");
 }
 
 /*
