@@ -56,8 +56,8 @@
 
 #define WORD_SIZE 0x8
 
-// The smallest block will at least store a header, footer and two pointers
-// each of which are one word long...
+// The smallest free block will at least store a header, footer, two pointers
+// and two words each of which are one word long...
 #define MIN_BLOCK_SIZE (6 * WORD_SIZE)
 
 
@@ -275,7 +275,6 @@ static void *Heap_Grow(u_int64_t size)
     u_int64_t *epilogue_header = Block_Get_Next_Adj(block);
     *epilogue_header = Pack_Size_Alloc(0, true);
 
-    // TODO: coalesce this block
     block = Block_Coalesce(block);
     
     return block;
@@ -296,6 +295,7 @@ bool mm_init(void)
 
     u_int64_t *words = heap_start;
 
+    // padding for alignment...
     words[0] = 0;
 
     Block_Set_Size_Alloc(&words[1], MIN_BLOCK_SIZE, false);
@@ -355,14 +355,10 @@ void *malloc(size_t size)
 
     if (iter) {
         // found a free block of suitable size...
-        // TODO
-
         Block_Allocate(iter, size);
         return (char*)iter + WORD_SIZE;
     } else {
         // couldn't find any free block, need to raise heap...
-        // TODO
-
         void *block = Heap_Grow(size);
         if (!block) {
             return NULL;
