@@ -51,17 +51,14 @@
 #define memcpy mem_memcpy
 #endif /* DRIVER */
 
-/* What is the correct alignment? */
-#define ALIGNMENT 16
 
+#define ALIGNMENT 0x10
 
-#define INITIAL_HEAP_SIZE 0x100
+#define WORD_SIZE 0x8
 
-
-typedef struct {
-    u_int64_t a;
-    u_int64_t b;
-} DoubleWord;
+// The smallest block will at least store a header, footer and two pointers
+// each of which are one word long...
+#define MIN_BLOCK_SIZE (4 * WORD_SIZE)
 
 
 typedef struct {
@@ -77,6 +74,8 @@ typedef struct {
 
 
 static void *free_list_head = NULL;
+
+static void *heap_start = NULL;
 
 
 /*
@@ -96,75 +95,58 @@ static size_t align(size_t x)
 }
 
 
-static inline u_int64_t Block_Get_Size(void *ptr) {
-    Tag *t = ptr;
+static inline bool Word_Get_Alloc(u_int64_t word)
+{
+    return word & 1;
+}
+
+
+static inline u_int64_t Word_Get_Size(u_int64_t word)
+{
+    return word >> 1;
+}
+
+
+static inline u_int64_t Block_Get_Size(void *block)
+{
+    u_int64_t *words = block;
 #ifdef DEBUG
-    u_int64_t size = t->size;
-    dbg_assert(size == (t + size / 16 - 1)->size);
+    // TODO: check block size stored in footer...
 #endif
-    return t->size;
+    return Word_Get_Size(words[0]);
 }
 
 
-static inline u_int64_t Block_Get_Alloc(void *ptr) {
-    Tag *t = ptr;
+static inline bool Block_Get_Alloc(void *block)
+{
+    u_int64_t *words = block;
 #ifdef DEBUG
-    u_int64_t size = t->size;
-    dbg_assert(t->alloc == (t + size / 16 - 1)->alloc);
+    // TODO: check alloc status stored in footer...
 #endif
-    return t->alloc;
+    return Word_Get_Size(words[0]);
+    return Word_Get_Size(words[0]);
 }
 
 
-static inline void * Block_Get_Next(void *ptr) {
-    Tag *t = ptr;
-    PointerPair *pp = (PointerPair *)(t + 1);
-    return pp->next;
+static inline void *Block_Get_Prev(void *block)
+{
+    u_int64_t *words = block;
+    return (void *)words[1];
 }
 
 
-static inline void * Block_Get_Prev(void *ptr) {
-    Tag *t = ptr;
-    PointerPair *pp = (PointerPair *)(t + 1);
-    return pp->prev;
+static inline void *Block_Get_Next(void *block)
+{
+    u_int64_t *words = block;
+    return (void *)words[2];
 }
 
 
-static inline void Block_Set_Size(void *ptr, u_int64_t size) {
-    dbg_assert(size % 16 == 0);
+static inline u_int64_t Pack_Size_Alloc(u_int64_t size, bool alloc)
+{
+    dbg_assert(size < ((u_int64_t)1 << 63));
 
-    Tag *t = ptr;
-    t->size = size;
-    (t + size / 16 - 1)->size = size;
-}
-
-
-static inline void Block_Set_Alloc(void *ptr, u_int64_t alloc, u_int64_t size) {
-    dbg_assert(size % 16 == 0);
-
-    Tag *t = ptr;
-    t->alloc = alloc;
-    (t + size / 16 - 1)->alloc = alloc;
-}
-
-
-static inline void Block_Set_Next(void *ptr, void *next) {
-    Tag *tag = ptr;
-    PointerPair *pp = (PointerPair *)(tag + 1);
-    pp->next = next;
-}
-
-
-static inline void Block_Set_Prev(void *ptr, void *prev) {
-    Tag *tag = ptr;
-    PointerPair *pp = (PointerPair *)(tag + 1);
-    pp->prev = prev;
-}
-
-static inline void * Block_Get_Data_Ptr(void *block) {
-    Tag *t = block;
-    Tag *data = t + 1;
-    return (void *)data;
+    return (size << 1 | (u_int64_t)alloc);
 }
 
 
@@ -174,23 +156,39 @@ static inline void * Block_Get_Data_Ptr(void *block) {
 bool mm_init(void)
 {
     dbg_printf("Debugging is enabled...\n");
-    dbg_assert(INITIAL_HEAP_SIZE % ALIGNMENT == 0);
-    dbg_assert(sizeof(DoubleWord) == ALIGNMENT);
-    dbg_assert(sizeof(Tag) == sizeof(DoubleWord));
-    dbg_assert(sizeof(PointerPair) == sizeof(DoubleWord));
+    dbg_assert(MIN_BLOCK_SIZE % ALIGNMENT == 0);
 
-    void *p = mem_sbrk(INITIAL_HEAP_SIZE);
-    if (p == NULL) {
+    heap_start = mem_sbrk(WORD_SIZE + MIN_BLOCK_SIZE + WORD_SIZE);
+    if (heap_start == NULL) {
         return false;
     }
 
-    Block_Set_Size(p, INITIAL_HEAP_SIZE);
-    Block_Set_Alloc(p, false, INITIAL_HEAP_SIZE);
+    u_int64_t *iter = heap_start;
 
-    Block_Set_Next(p, NULL);
-    Block_Set_Prev(p, NULL);
+    // prologue header
+    *iter = Pack_Size_Alloc(0, true);
+    iter += 1;
 
-    free_list_head = p;
+    free_list_head = iter;
+
+    // size and alloc for first block
+    *iter = Pack_Size_Alloc(MIN_BLOCK_SIZE, false);
+    iter += 1;
+
+    // pointer to next previous block (NULL)
+    *iter = (u_int64_t)NULL;
+    iter += 1;
+
+    // pointer to next next block (NULL)
+    *iter = (u_int64_t)NULL;
+    iter += 1;
+
+    // size and alloc for first block
+    *iter = Pack_Size_Alloc(MIN_BLOCK_SIZE, false);
+    iter += 1;
+
+    // epilogue header
+    *iter = Pack_Size_Alloc(0, true);
 
     return true;
 }
@@ -199,7 +197,7 @@ bool mm_init(void)
 /*
  * malloc
  */
-void* malloc(size_t size)
+void *malloc(size_t size)
 {
     void *result = NULL;
 
@@ -207,89 +205,24 @@ void* malloc(size_t size)
         return result;
     }
 
-    size = align(size + 2 * sizeof(Tag));
-
-    void *curr = free_list_head;
-    while (curr && Block_Get_Size(curr) < size) {
-        curr = Block_Get_Next(curr);
+    size = align(size) + 2 * WORD_SIZE;
+    if (size < MIN_BLOCK_SIZE) {
+        size = MIN_BLOCK_SIZE;
     }
 
+    void *iter = free_list_head;
+    while (iter &&
+            Block_Get_Alloc(iter) == false &&
+            Block_Get_Size(iter) < size) {
+        iter = Block_Get_Next(iter);
+    }
 
-    if (curr) {
-        void *prev = Block_Get_Prev(curr);
-        void *next = Block_Get_Next(curr);
-
-        void *alloc_block = curr;
-        result = Block_Get_Data_Ptr(curr);
-
-        u_int64_t free_size = Block_Get_Size(curr);
-
-        Block_Set_Size(alloc_block, size);
-        Block_Set_Alloc(alloc_block, true, size);
-
-        if (free_size > size) {
-            void *free_block = ((char *)alloc_block) + size;
-            Block_Set_Size(free_block, free_size - size);
-            Block_Set_Alloc(free_block, false, free_size - size);
-            Block_Set_Prev(free_block, prev);
-            Block_Set_Next(free_block, next);
-
-            if (prev) {
-                Block_Set_Next(prev, free_block);
-            } else {
-                dbg_assert(free_list_head == curr);
-                free_list_head = free_block;
-            }
-
-            if (next) {
-                Block_Set_Prev(next, free_block);
-            }
-
-        } else {
-            if (prev) {
-                Block_Set_Next(prev, next);
-            } else {
-                dbg_assert(free_list_head == curr);
-                free_list_head = next;
-            }
-
-            if (next) {
-                Block_Set_Prev(next, prev);
-            }
-        }
-
+    if (iter) {
+        // found a free block of suitable size...
     } else {
-        void *p = mem_sbrk(size);
-
-        Tag *t = p;
-        Tag *prev_footer = t - 1;
-        if (in_heap(prev_footer) && prev_footer->alloc == false) {
-            u_int64_t prev_block_size = prev_footer->size;
-            Tag *header = prev_footer - prev_block_size / 16 + 1;
-
-            void *prev = Block_Get_Prev(header);
-            void *next = Block_Get_Next(header);
-
-            size += header->size;
-            Block_Set_Size(header, size);
-            Block_Set_Alloc(header, true, size);
-
-            Block_Set_Prev(header, prev);
-            Block_Set_Next(header, next);
-
-            p = header;
-        } else {
-            Block_Set_Prev(p, NULL);
-            Block_Set_Next(p, free_list_head);
-
-            Block_Set_Prev(free_list_head, p);
-
-            free_list_head = p;
-        }
-
-        result = Block_Get_Data_Ptr(p);
+        assert(false);
+        // couldn't find any free block, need to raise heap...
     }
-
 
     return result;
 }
