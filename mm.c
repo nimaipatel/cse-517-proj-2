@@ -184,7 +184,7 @@ static inline void Block_Set_Size_Alloc(void *block, const u_int64_t size, const
 }
 
 
-static void Block_Unlink_Free_List(void *block)
+static void Block_Unlink_Free_List(const void *block)
 {
     void *prev = Block_Get_Prev_Free(block);
     void *next = Block_Get_Next_Free(block);
@@ -202,10 +202,46 @@ static void Block_Unlink_Free_List(void *block)
 }
 
 
-static void Block_Coalesce(void *block)
+static void *Block_Coalesce(void *block)
 {
-    // TODO
-    assert(false);
+    u_int64_t size = Block_Get_Size(block);
+
+    void *prev = Block_Get_Prev_Adj(block);
+    void *next = Block_Get_Next_Adj(block);
+
+    bool prev_is_free = block != prev && Block_Get_Alloc(prev) == false;
+    bool next_is_free = block != next && Block_Get_Alloc(next) == false;
+
+    if (!prev_is_free && next_is_free) {
+
+        size += Block_Get_Size(next);
+        Block_Unlink_Free_List(next);
+        Block_Set_Size_Alloc(block, size, false);
+
+    } else if (prev_is_free && !next_is_free) {
+
+        size += Block_Get_Size(prev);
+        Block_Unlink_Free_List(prev);
+        block = prev;
+        Block_Set_Size_Alloc(block, size, false);
+
+    } else if (prev_is_free && next_is_free) {
+
+        size += Block_Get_Size(prev) + Block_Get_Size(next);
+        Block_Unlink_Free_List(prev);
+        Block_Unlink_Free_List(next);
+        block = prev;
+        Block_Set_Size_Alloc(block, size, false);
+
+    }
+
+    Block_Set_Next_Free(block, free_list_head);
+    Block_Set_Prev_Free(block, NULL);
+
+    Block_Set_Prev_Free(free_list_head, block);
+    free_list_head = block;
+
+    return block;
 }
 
 
