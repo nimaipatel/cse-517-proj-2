@@ -103,13 +103,13 @@ static inline u_int64_t Pack_Size_Alloc(u_int64_t size, bool alloc)
 }
 
 
-static inline bool Word_Get_Alloc(u_int64_t word)
+static inline bool Tag_Get_Alloc(u_int64_t word)
 {
     return word & 1;
 }
 
 
-static inline u_int64_t Word_Get_Size(u_int64_t word)
+static inline u_int64_t Tag_Get_Size(u_int64_t word)
 {
     return word >> 1;
 }
@@ -118,11 +118,11 @@ static inline u_int64_t Word_Get_Size(u_int64_t word)
 static inline u_int64_t Block_Get_Size(void *block)
 {
     u_int64_t *words = block;
-    u_int64_t size = Word_Get_Size(words[0]);
+    u_int64_t size = Tag_Get_Size(words[0]);
 #ifdef DEBUG
     // check block size stored in footer...
     u_int64_t footer = words[size / WORD_SIZE - 1];
-    dbg_assert(size == Word_Get_Size(footer));
+    dbg_assert(size == Tag_Get_Size(footer));
 #endif
     return size;
 }
@@ -131,12 +131,12 @@ static inline u_int64_t Block_Get_Size(void *block)
 static inline bool Block_Get_Alloc(void *block)
 {
     u_int64_t *words = block;
-    bool alloc = Word_Get_Alloc(words[0]);
+    bool alloc = Tag_Get_Alloc(words[0]);
 #ifdef DEBUG
     // check alloc status stored in footer...
-    u_int64_t size = Word_Get_Size(words[0]);
+    u_int64_t size = Tag_Get_Size(words[0]);
     u_int64_t footer = words[size / WORD_SIZE - 1];
-    dbg_assert(alloc == Word_Get_Alloc(footer));
+    dbg_assert(alloc == Tag_Get_Alloc(footer));
 #endif
     return alloc;
 }
@@ -159,12 +159,15 @@ static inline void *Block_Get_Next_Free(void *block)
 static inline void *Block_Get_Next_Adj(void *block)
 {
     u_int64_t size = Block_Get_Size(block);
-    return (((char *)block) + size);
+    return (char *)block + size;
 }
 
 
 static inline void *Block_Get_Prev_Adj(void *block)
 {
+    u_int64_t *words = block;
+    u_int64_t prev_footer = words[-1];
+    return (char *)block - Tag_Get_Size(prev_footer);
 }
 
 
@@ -178,7 +181,14 @@ static inline void Block_Set_Size_Alloc(void *block, u_int64_t size, bool alloc)
     words[size / WORD_SIZE - 1] = size_alloc_word;
 }
 
+
 static void Block_Unlink_Free_List(void *block)
+{
+    // TODO
+    assert(false);
+}
+
+static void Block_Coalesce(void *block)
 {
     // TODO
     assert(false);
@@ -229,6 +239,7 @@ static void Block_Allocate(void *block, u_int64_t size)
         // the block has excess space, it needs to be split to maximize
         // utilization...
         Block_Set_Size_Alloc(block, size, true);
+        Block_Coalesce(block);
     }
 }
 
