@@ -144,6 +144,20 @@ static inline void *Block_Get_Next_Free(const void *block)
 }
 
 
+static inline void Block_Set_Next_Free(void *block, const void *next)
+{
+    u_int64_t *words = block;
+    words[2] = (u_int64_t)next;
+}
+
+
+static inline void Block_Set_Prev_Free(void *block, const void *prev)
+{
+    u_int64_t *words = block;
+    words[1] = (u_int64_t)prev;
+}
+
+
 static inline void *Block_Get_Next_Adj(const void *block)
 {
     const u_int64_t size = Block_Get_Size(block);
@@ -172,8 +186,19 @@ static inline void Block_Set_Size_Alloc(void *block, const u_int64_t size, const
 
 static void Block_Unlink_Free_List(void *block)
 {
-    // TODO
-    assert(false);
+    void *prev = Block_Get_Prev_Free(block);
+    void *next = Block_Get_Next_Free(block);
+
+    if (prev) {
+        Block_Set_Next_Free(prev, next);
+    } else {
+        dbg_assert(free_list_head == block);
+        free_list_head = next;
+    }
+
+    if (next) {
+        Block_Set_Prev_Free(next, prev);
+    }
 }
 
 
