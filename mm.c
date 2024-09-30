@@ -58,7 +58,7 @@
 
 // The smallest block will at least store a header, footer and two pointers
 // each of which are one word long...
-#define MIN_BLOCK_SIZE (4 * WORD_SIZE)
+#define MIN_BLOCK_SIZE (6 * WORD_SIZE)
 
 
 static void *free_list_head = NULL;
@@ -108,9 +108,9 @@ static inline u_int64_t Block_Get_Size(const void *block)
     const u_int64_t *words = block;
     const u_int64_t size = Tag_Get_Size(words[0]);
 #ifdef DEBUG
-    // check block size stored in footer...
-    const u_int64_t footer = words[size / WORD_SIZE - 1];
-    dbg_assert(size == Tag_Get_Size(footer));
+    if (size > 0) {
+        dbg_assert(words[0] == words[size / WORD_SIZE - 1]);
+    }
 #endif
     return size;
 }
@@ -121,10 +121,10 @@ static inline bool Block_Get_Alloc(const void *block)
     const u_int64_t *words = block;
     const bool alloc = Tag_Get_Alloc(words[0]);
 #ifdef DEBUG
-    // check alloc status stored in footer...
     const u_int64_t size = Tag_Get_Size(words[0]);
-    const u_int64_t footer = words[size / WORD_SIZE - 1];
-    dbg_assert(alloc == Tag_Get_Alloc(footer));
+    if (size > 0) {
+        dbg_assert(words[0] == words[size / WORD_SIZE - 1]);
+    }
 #endif
     return alloc;
 }
@@ -202,6 +202,24 @@ static void Block_Unlink_Free_List(const void *block)
 }
 
 
+static void Block_Prepend_Free_List(void *block)
+{
+    if (free_list_head == NULL) {
+        free_list_head = block;
+        Block_Set_Prev_Free(block, NULL);
+        Block_Set_Next_Free(block, NULL);
+    } else {
+        void *old_head = free_list_head;
+
+        free_list_head = block;
+        Block_Set_Prev_Free(free_list_head, NULL);
+        Block_Set_Prev_Free(old_head, NULL);
+
+        Block_Set_Prev_Free(old_head, block);
+    }
+}
+
+
 static void *Block_Coalesce(void *block)
 {
     u_int64_t size = Block_Get_Size(block);
@@ -235,11 +253,7 @@ static void *Block_Coalesce(void *block)
 
     }
 
-    Block_Set_Next_Free(block, free_list_head);
-    Block_Set_Prev_Free(block, NULL);
-
-    Block_Set_Prev_Free(free_list_head, block);
-    free_list_head = block;
+    Block_Prepend_Free_List(block);
 
     return block;
 }
@@ -249,10 +263,12 @@ static void *Heap_Grow(u_int64_t size)
 {
     dbg_assert(size % (2 * WORD_SIZE) == 0);
 
-    void *block = mem_sbrk(size);
-    if (block == NULL) {
+    void *p = mem_sbrk(size);
+    if (p == NULL) {
         return NULL;
     }
+
+    u_int64_t *block = (u_int64_t *)p - 1;
 
     Block_Set_Size_Alloc(block, size, false);
 
@@ -260,6 +276,8 @@ static void *Heap_Grow(u_int64_t size)
     *epilogue_header = Pack_Size_Alloc(0, true);
 
     // TODO: coalesce this block
+    block = Block_Coalesce(block);
+    
     return block;
 }
 
@@ -269,7 +287,6 @@ static void *Heap_Grow(u_int64_t size)
  */
 bool mm_init(void)
 {
-    dbg_printf("Debugging is enabled...\n");
     dbg_assert(MIN_BLOCK_SIZE % ALIGNMENT == 0);
 
     heap_start = mem_sbrk(WORD_SIZE + MIN_BLOCK_SIZE + WORD_SIZE);
@@ -279,18 +296,12 @@ bool mm_init(void)
 
     u_int64_t *words = heap_start;
 
-    // prologue header, simplifies the case where we call Block_Get_Prev_Adj()
-    // on the block right after this...
-    words[0] = Pack_Size_Alloc(0, true);
+    words[0] = 0;
 
-    free_list_head = &words[1];
-    Block_Set_Size_Alloc(free_list_head, MIN_BLOCK_SIZE, false);
+    Block_Set_Size_Alloc(&words[1], MIN_BLOCK_SIZE, false);
+    Block_Prepend_Free_List(&words[1]);
 
-    // epilogue header, simplifies the case where we call Block_Get_Next_Adj()
-    // on the block right before this...
-    words[5] = Pack_Size_Alloc(0, true);
-
-    // TODO: store result of Pack_Size_Alloc(0, true) as a special constant...
+    words[7] = Pack_Size_Alloc(0, true);
 
     return true;
 }
@@ -311,7 +322,11 @@ static void Block_Allocate(void *block, const u_int64_t size)
         // the block has excess space, it needs to be split to maximize
         // utilization...
         Block_Set_Size_Alloc(block, size, true);
-        Block_Coalesce(block);
+        Block_Unlink_Free_List(block);
+        
+        void *next = Block_Get_Next_Adj(block);
+        Block_Set_Size_Alloc(next, block_size - size, false);
+        Block_Coalesce(next);
     }
 }
 
@@ -321,10 +336,8 @@ static void Block_Allocate(void *block, const u_int64_t size)
  */
 void *malloc(size_t size)
 {
-    void *result = NULL;
-
     if (size == 0) {
-        return result;
+        return NULL;
     }
 
     size = align(size) + 2 * WORD_SIZE;
@@ -343,14 +356,20 @@ void *malloc(size_t size)
     if (iter) {
         // found a free block of suitable size...
         // TODO
-        assert(false);
+
+        Block_Allocate(iter, size);
+        return (char*)iter + WORD_SIZE;
     } else {
         // couldn't find any free block, need to raise heap...
         // TODO
-        assert(false);
-    }
 
-    return result;
+        void *block = Heap_Grow(size);
+        if (!block) {
+            return NULL;
+        }
+        Block_Allocate(block, size);
+        return (char*)block + WORD_SIZE;
+    }
 }
 
 /*
@@ -402,8 +421,6 @@ static bool aligned(const void* p)
 bool mm_checkheap(int lineno)
 {
 #ifdef DEBUG
-    /* Write code to check heap invariants here */
-    /* IMPLEMENT THIS */
 #endif /* DEBUG */
     return true;
 }
