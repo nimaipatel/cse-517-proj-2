@@ -65,7 +65,6 @@ static void *free_list_head = NULL;
 
 static void *heap_start = NULL;
 
-static void Heap_Print(void);
 
 /*
  * Returns whether the pointer is in the heap.
@@ -361,8 +360,11 @@ void *malloc(size_t size)
 
     void *iter = free_list_head;
     while (iter &&
-            // TODO: how to make this check only in debug mode?
-            Block_Get_Alloc(iter) == false &&
+#ifdef DEBUG
+            // free list should only have blocks that are marked free, we
+            // assert this invariant in debug mode
+            (dbg_assert(Block_Get_Alloc(iter) == false), true) &&
+#endif
             Block_Get_Size(iter) < size) {
         iter = Block_Get_Next_Free(iter);
     }
@@ -401,10 +403,44 @@ void free(void* ptr)
 /*
  * realloc
  */
-void* realloc(void* oldptr, size_t size)
+void *realloc(void *ptr, size_t size)
 {
-    /* IMPLEMENT THIS */
-    return NULL;
+    if(size == 0) {
+        free(ptr);
+        return NULL;
+    }
+
+    if(!ptr) {
+        return malloc(size);
+    }
+
+    u_int64_t aligned_size = (align(size) + 2 * WORD_SIZE);
+    if (aligned_size < MIN_BLOCK_SIZE) {
+        aligned_size = MIN_BLOCK_SIZE;
+    }
+
+    u_int64_t old_size = Block_Get_Size((u_int64_t *)ptr - 1);
+
+    if (aligned_size == old_size) {
+        return ptr;
+    }
+
+    void *newptr = malloc(size);
+
+    if(!newptr) {
+
+        return NULL;
+    }
+
+    u_int64_t copy_size = old_size;
+    if (size < copy_size) {
+        copy_size = size;
+    }
+    memcpy(newptr, ptr, copy_size);
+
+    free(ptr);
+
+    return newptr;
 }
 
 /*
@@ -432,22 +468,31 @@ static bool aligned(const void* p)
     return align(ip) == ip;
 }
 
+
+#ifdef DEBUG // Heap_Print(void)
+// I use this function to print the heap in gdb using
+// `call Heap_Print()`
 static void Heap_Print(void)
 {
+    if (!heap_start) {
+        dbg_printf("The heap is uninitialized...\n");
+        return;
+    }
+
     u_int64_t *words = heap_start;
     
     dbg_assert(words[0] == 0);
 
     dbg_printf("\nHeap start...\n");
 
-    dbg_printf("%p\t0x%016x\tPadding for alignment\n", words, words[0]);
+    dbg_printf("%p\t0x%016lx\tPadding for alignment\n", words, words[0]);
 
     u_int64_t *iter = &words[1];
     do {
         const u_int64_t size = Block_Get_Size(iter);
         const bool alloc = Block_Get_Alloc(iter);
 
-        dbg_printf("%p\t0x%016x\tsize = 0x%x\talloc = %d\n", iter, *iter, size, alloc);
+        dbg_printf("%p\t0x%016lx\tsize = 0x%16lx\talloc = %d\n", iter, *iter, size, alloc);
 
         iter = Block_Get_Next_Adj(iter);
     } while (iter != Block_Get_Next_Adj(iter));
@@ -455,12 +500,17 @@ static void Heap_Print(void)
     const u_int64_t size = Block_Get_Size(iter);
     const bool alloc = Block_Get_Alloc(iter);
 
-    dbg_printf("%p\t0x%016x\tsize = 0x%x\talloc = %d\tEpilogue...\n", iter, *iter, size, alloc);
+    dbg_printf("%p\t0x%016lx\tsize = 0x%16lx\talloc = %d\tEpilogue...\n", iter, *iter, size, alloc);
 
     dbg_printf("heap end...\n\n");
 
 }
+#endif // Heap_Print(void)
 
+
+#ifdef DEBUG // Free_List_Print(void)
+// I use this function to print the free block list in gdb using 
+// `call Free_List_Print()`
 static void Free_List_Print(void)
 {
     u_int64_t *block = free_list_head;
@@ -471,13 +521,15 @@ static void Free_List_Print(void)
         const u_int64_t size = Block_Get_Size(block);
         const bool alloc = Block_Get_Alloc(block);
 
-        dbg_printf("%p\t0x%016x\tsize = 0x%x\talloc = %d\n", block, *block, size, alloc);
+        dbg_printf("%p\t0x%016lx\tsize = 0x%lx\talloc = %d\n", block, *block, size, alloc);
 
         block = Block_Get_Next_Free(block);
     }
 
     dbg_printf("Free list end...\n\n");
 }
+#endif // Free_List_Print(void)
+
 
 /*
  * mm_checkheap
