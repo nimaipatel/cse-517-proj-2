@@ -58,7 +58,7 @@
 
 // The smallest free block will at least store a header, footer, two pointers
 // and two words each of which are one word long...
-#define MIN_BLOCK_SIZE (6 * WORD_SIZE)
+#define MIN_BLOCK_SIZE (0x04 * WORD_SIZE)
 
 
 static void *free_list_head = NULL;
@@ -349,6 +349,8 @@ static void Block_Allocate(void *block, const u_int64_t size)
  */
 void *malloc(size_t size)
 {
+    mm_checkheap(__LINE__);
+
     if (size == 0) {
         return NULL;
     }
@@ -389,6 +391,8 @@ void *malloc(size_t size)
  */
 void free(void* ptr)
 {
+    mm_checkheap(__LINE__);
+
     if (!ptr) {
         return;
     }
@@ -403,13 +407,17 @@ void free(void* ptr)
 /*
  * realloc
  */
-void *realloc(void *ptr, size_t size)
+void *realloc(void *ptr, const size_t size)
 {
+    mm_checkheap(__LINE__);
+
+    // if we are shrinking to 0 bytes, it is essentially just a call to free...
     if(size == 0) {
         free(ptr);
         return NULL;
     }
 
+    // if ptr is NULL then this is essentially just a call to malloc...
     if(!ptr) {
         return malloc(size);
     }
@@ -419,28 +427,74 @@ void *realloc(void *ptr, size_t size)
         aligned_size = MIN_BLOCK_SIZE;
     }
 
-    u_int64_t old_size = Block_Get_Size((u_int64_t *)ptr - 1);
+    void *block = (u_int64_t *)ptr - 1;
+    const u_int64_t old_size = Block_Get_Size(block);
 
-    if (aligned_size == old_size) {
-        return ptr;
+    // we are shrinking (or maintaing) block size...
+    if (aligned_size <= old_size) { 
+        // ...but there is NOT enough space to spawn a new free block...
+        if (old_size - aligned_size < MIN_BLOCK_SIZE) {
+            return ptr;
+        } else {
+            // there is enough space to spawn a new free block...
+            // NOTE: adding this case did not increase peformance for some
+            // reason
+            Block_Set_Size_Alloc(block, aligned_size, true);
+            void *next = Block_Get_Next_Adj(block);
+            Block_Set_Size_Alloc(next, old_size - aligned_size, false);
+            Block_Coalesce(next);
+            return ptr;
+
+        }
+
+    } else {
+        // we are expanding the block size...
+
+        void *next = Block_Get_Next_Adj(block);
+        const bool next_is_free = !Block_Get_Alloc(next);
+        const u_int64_t next_size = Block_Get_Size(next);
+
+        // we found a free block next to us and it has enough free space...
+        if (next_is_free && next_size + old_size >= size)  {
+
+            Block_Unlink_Free_List(next);
+
+            // the free block will be entirely used...
+            if (next_size + old_size - aligned_size <= MIN_BLOCK_SIZE) {
+                Block_Set_Size_Alloc(block, next_size + old_size, true);
+                return ptr;
+            } else {
+
+                // the free block next to us has more space then we need for
+                // expanding, it will spawn a new free block...
+                Block_Set_Size_Alloc(block, aligned_size, true);
+
+                next = Block_Get_Next_Adj(block);
+                Block_Set_Size_Alloc(next, next_size + old_size - aligned_size, false);
+                Block_Coalesce(next);
+
+                return ptr;
+            }
+
+        } else {
+
+            void *newptr = malloc(size);
+            if(!newptr) {
+                return NULL;
+            }
+
+            u_int64_t copy_size = old_size;
+            if (size < copy_size) {
+                copy_size = size;
+            }
+            memcpy(newptr, ptr, copy_size);
+
+            free(ptr);
+
+            return newptr;
+        }
     }
 
-    void *newptr = malloc(size);
-
-    if(!newptr) {
-
-        return NULL;
-    }
-
-    u_int64_t copy_size = old_size;
-    if (size < copy_size) {
-        copy_size = size;
-    }
-    memcpy(newptr, ptr, copy_size);
-
-    free(ptr);
-
-    return newptr;
 }
 
 /*
@@ -536,7 +590,18 @@ static void Free_List_Print(void)
  */
 bool mm_checkheap(int lineno)
 {
+
 #ifdef DEBUG
+
+    // check that all blocks in free list are free...
+    void *block = free_list_head;
+    while (block) {
+        dbg_assert(Block_Get_Alloc(block) == false);
+
+        block = Block_Get_Next_Free(block);
+    }
+
 #endif /* DEBUG */
+
     return true;
 }
