@@ -360,30 +360,27 @@ void *malloc(size_t size)
         size = MIN_BLOCK_SIZE;
     }
 
-    void *iter = free_list_head;
-    while (iter &&
+    void *block = free_list_head;
+    while (block &&
 #ifdef DEBUG
             // free list should only have blocks that are marked free, we
             // assert this invariant in debug mode
-            (dbg_assert(Block_Get_Alloc(iter) == false), true) &&
+            (dbg_assert(Block_Get_Alloc(block) == false), true) &&
 #endif
-            Block_Get_Size(iter) < size) {
-        iter = Block_Get_Next_Free(iter);
+            Block_Get_Size(block) < size) {
+        block = Block_Get_Next_Free(block);
     }
 
-    if (iter) {
-        // found a free block of suitable size...
-        Block_Allocate(iter, size);
-        return (char *)iter + WORD_SIZE;
-    } else {
+    if (!block) {
         // couldn't find any free block, need to raise heap...
-        void *block = Heap_Grow(size);
+        block = Heap_Grow(size);
         if (!block) {
             return NULL;
         }
-        Block_Allocate(block, size);
-        return (char *)block + WORD_SIZE;
     }
+
+    Block_Allocate(block, size);
+    return (char *)block + WORD_SIZE;
 }
 
 /*
