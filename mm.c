@@ -106,6 +106,7 @@ static inline word_t Pack_Size_Alloc(const word_t size, const bool alloc)
 }
 
 
+
 /* get allocation status of block from a tag */
 static inline bool Tag_Get_Alloc(const word_t word)
 {
@@ -645,24 +646,64 @@ static void Free_List_Print(void)
 bool mm_checkheap(int lineno)
 {
 
+    bool ret = true;
+
 #ifdef DEBUG
 
     // check that all blocks in free list are free...
+    void *prev = NULL;
     void *block = free_list_head;
     while (block) {
-        dbg_assert(Block_Get_Alloc(block) == false);
+        // check that blocks in free list are marked free...
+        if (Block_Get_Alloc(block) == true) {
+            ret = false;
+            dbg_printf("line %d: block at %p is in free list "
+                    "but marked as allocated\n", lineno, block);
+        }
 
+        // check prev and next pointers are consistent...
+        if (Block_Get_Prev_Free(block) != prev) {
+            ret = false;
+            dbg_printf("line %d: inconsistent prev pointer for block at %p\n",
+                    lineno, block);
+        }
+
+        prev = block;
         block = Block_Get_Next_Free(block);
     }
 
-    // TODO: check  adjacent free blocks are always coalesced...
+    block = (word_t *)heap_start + 1;
+    while (block != Block_Get_Next_Adj(block)) {
+        if (Block_Get_Alloc(block) == false) {
+            void *prev = Block_Get_Prev_Adj(block);
+            void *next = Block_Get_Prev_Adj(block);
+
+            // check that adjacent blocks are not free...
+            if (prev != block && Block_Get_Alloc(prev) == false) {
+                ret = false;
+                dbg_printf("line %d: block at %p is free "
+                        "but one before it at %p is also free\n",
+                        lineno, block, prev);
+            }
+
+            // check that adjacent blocks are not free...
+            if (next != block && Block_Get_Alloc(next) == false) {
+                ret = false;
+                dbg_printf("line %d: block at %p is free "
+                        "but one after it at %p is also free\n",
+                        lineno, block, next);
+            }
+        }
+
+        block = Block_Get_Next_Adj(block);
+    }
+
     // TODO: check that every free block is in the free list...
-    // TODO: check pointers in free blocks point to other valid free blocks...
     // TODO: check that allocated blocks don't overlap...
     // TODO: all pointers are in the heap...
 
 
 #endif /* DEBUG */
 
-    return true;
+    return ret;
 }
