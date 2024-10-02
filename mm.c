@@ -702,15 +702,41 @@ bool mm_checkheap(int lineno)
         block = Block_Get_Next_Adj(block);
     }
 
+    // block should be the end boundary tag...
+    if (*(word_t *)block != BOUNDARY_TAG) {
+        ret = false;
+        dbg_printf("line %d: heap traversal stopped before reaching the"
+                " boundary tag\n", lineno);
+    }
+
+    // check last byte of boundary tag is exactly at the end of the heap, this
+    // should be enough to prove that all pointers before it are in the heap...
+    const void *last_byte = (char *)block + 7;
+    if (last_byte != mem_heap_hi()) {
+        ret = false;
+        dbg_printf("line %d: boundary tag is not exactly at the end "
+                "of the heap last byte is at %p but end of heap is at %p\n",
+                lineno, last_byte, mem_heap_hi());
+    }
+
+    // check start of heap is correct...
+    if (heap_start != mem_heap_lo()) {
+        ret = false;
+        dbg_printf("line %d: heap_start isn't set to actual start of heap "
+                "heap_start is %p, but should be %p\n",
+                lineno, heap_start, mem_heap_lo());
+    }
+
+    // check number of free blocks is consistent from free list and heap
+    // iteration...
     if (n_free != n_free2) {
         ret = false;
-        dbg_printf("line no: while traversing free list found %ld free blocks "
+        dbg_printf("line %d: while traversing free list found %ld free blocks "
                 ", but while traversing heap, found %ld free blocks\n",
-                n_free, n_free2);
+                lineno, n_free, n_free2);
     }
 
     // TODO: check that allocated blocks don't overlap...
-    // TODO: all pointers are in the heap...
 
 
 #endif /* DEBUG */
