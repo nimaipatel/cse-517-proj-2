@@ -468,15 +468,18 @@ void *realloc(void *ptr, const size_t size)
     void *block = (word_t *)ptr - 1;
     const word_t old_size = Block_Get_Size(block);
 
-    // we are shrinking (or maintaing) block size...
     if (aligned_size <= old_size) { 
-        // ...but there is NOT enough space to spawn a new free block...
+        // we are shrinking (or maintaining) block size...
+
         if (old_size - aligned_size < MIN_BLOCK_SIZE) {
+            // ...but there is NOT enough space to spawn a new free block...
             return ptr;
+
         } else {
             // there is enough space to spawn a new free block...
-            // NOTE: adding this case did not increase peformance for some
+            // NOTE: adding this case did not increase performance for some
             // reason
+
             Block_Set_Size_Alloc(block, aligned_size, true);
             void *next = Block_Get_Next_Adj(block);
             Block_Set_Size_Alloc(next, old_size - aligned_size, false);
@@ -563,7 +566,7 @@ static bool aligned(const void* p)
 static void Block_Print(void *block)
 {
     if (!block) {
-        const char *fmt = "%18s  " "%18s  " "%18s  " "%18s  " "\n";
+        const char *fmt = "  %18s" "  %18s" "  %18s" "  %18s" "\n";
         dbg_printf(fmt, "address", "word", "size", "allocation");
         return;
     }
@@ -573,7 +576,7 @@ static void Block_Print(void *block)
     const word_t size = Block_Get_Size(block);
     const char *alloc_str = alloc ? " true" : "false";
 
-    const char *fmt = "0x%016lx  " "0x%016lx  " "0x%016lx  " "%16s" "\n";
+    const char *fmt = "  0x%016lx" "  0x%016lx" "  0x%016lx" "  %18s" "\n";
     dbg_printf(fmt, word, *word, size, alloc_str);
 }
 #endif // Block_Print(...)
