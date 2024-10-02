@@ -55,7 +55,7 @@ typedef u_int64_t word_t;
 
 #define WORD_SIZE (sizeof(word_t))
 #define ALIGNMENT (2 * WORD_SIZE)
-#define WORD_SIZE_BITS (8 * sizeof(word_t))
+#define WORD_SIZE_BITS (8 * WORD_SIZE)
 
 // The smallest free block will at least store a header, footer, two pointers
 // and two words each of which are one word long...
@@ -109,7 +109,9 @@ static inline bool Tag_Get_Alloc(const word_t word)
 /* get size of block from a tag */
 static inline word_t Tag_Get_Size(const word_t word)
 {
-    return word >> 1;
+    const word_t size = word >> 1;
+    dbg_assert(size % (2 * WORD_SIZE) == 0);
+    return size;
 }
 
 
@@ -367,7 +369,7 @@ void *malloc(const size_t size)
 
     void *best_block = block;
 
-#if 0
+#if 1
     // keep searching for a better fit upto a limit...
     while (block && counter < 0x10) {
 
@@ -484,11 +486,8 @@ void *realloc(void *ptr, const size_t size)
         const bool next_is_free = !Block_Get_Alloc(next);
         const word_t next_size = Block_Get_Size(next);
 
-        if (next_is_free && next_size + old_size >= size)  {
+        if (next_is_free && next_size + old_size >= aligned_size)  {
             // we found a free block next to us and it has enough free space...
-
-            // TODO: this if brach needs to be fixed, run with mix-realloc
-            // trace to find crash
 
             Block_Unlink_Free_List(next);
 
@@ -565,7 +564,7 @@ static void Heap_Print(void)
 
     word_t *words = heap_start;
     
-    dbg_assert(words[0] == 0);
+    dbg_assert(words[0] == Pack_Size_Alloc(0, true));
 
     dbg_printf("\nHeap start...\n");
 
