@@ -65,6 +65,10 @@ typedef u_int64_t word_t;
 // TODO: what could be a better way to decide this?
 #define BEST_FIT_SEARCH_LIMIT 0x30
 
+// this is the result of Pack_Size_Alloc(0, true)
+// size = 0, and last bit is set to 1 (true) for allocation status
+#define BOUNDARY_TAG 0x0000000000000001
+
 static void *free_list_head = NULL;
 static void *heap_start = NULL;
 
@@ -125,7 +129,7 @@ static inline word_t Block_Get_Size(const void *block)
     const word_t size = Tag_Get_Size(words[0]);
 #ifdef DEBUG
     // we need to check if size is non-zero, since this calculation won't work
-    // on special epilogue tag
+    // on special boundary tag
     if (size > 0) {
         dbg_assert(words[0] == words[size / WORD_SIZE - 1]);
     }
@@ -142,7 +146,7 @@ static inline bool Block_Get_Alloc(const void *block)
 #ifdef DEBUG
     const word_t size = Tag_Get_Size(words[0]);
     // we need to check if size is non-zero, since this calculation won't work
-    // on special epilogue tag
+    // on special boundary tag
     if (size > 0) {
         dbg_assert(words[0] == words[size / WORD_SIZE - 1]);
     }
@@ -298,8 +302,8 @@ static void *Heap_Grow(word_t size)
 
     Block_Set_Size_Alloc(block, size, false);
 
-    word_t *epilogue_header = Block_Get_Next_Adj(block);
-    *epilogue_header = Pack_Size_Alloc(0, true);
+    word_t *head_end = Block_Get_Next_Adj(block);
+    *head_end = BOUNDARY_TAG;
 
     block = Block_Coalesce(block);
     
@@ -328,8 +332,8 @@ bool mm_init(void)
     word_t *words = heap_start;
 
     // special tags at start and end of the heap...
-    words[0] = Pack_Size_Alloc(0, true);
-    words[1] = Pack_Size_Alloc(0, true);
+    words[0] = BOUNDARY_TAG;
+    words[1] = BOUNDARY_TAG;
 
     return true;
 }
@@ -543,6 +547,7 @@ void* calloc(size_t nmemb, size_t size)
     return ptr;
 }
 
+
 /*
  * Returns whether the pointer is aligned.
  * May be useful for debugging.
@@ -554,7 +559,27 @@ static bool aligned(const void* p)
 }
 
 
-#ifdef DEBUG // Heap_Print(void)
+#ifdef DEBUG // Block_Print(...)
+static void Block_Print(void *block)
+{
+    if (!block) {
+        const char *fmt = "%18s  " "%18s  " "%18s  " "%18s  " "\n";
+        dbg_printf(fmt, "address", "word", "size", "allocation");
+        return;
+    }
+
+    word_t *word = block;
+    const bool alloc = Block_Get_Alloc(block);
+    const word_t size = Block_Get_Size(block);
+    const char *alloc_str = alloc ? " true" : "false";
+
+    const char *fmt = "0x%016lx  " "0x%016lx  " "0x%016lx  " "%16s" "\n";
+    dbg_printf(fmt, word, *word, size, alloc_str);
+}
+#endif // Block_Print(...)
+
+
+#ifdef DEBUG // Heap_Print(...)
 // I use this function to print the heap in gdb using
 // `call Heap_Print()`
 static void Heap_Print(void)
@@ -566,34 +591,30 @@ static void Heap_Print(void)
 
     word_t *words = heap_start;
     
-    dbg_assert(words[0] == Pack_Size_Alloc(0, true));
+    dbg_assert(words[0] == BOUNDARY_TAG);
 
     dbg_printf("\nHeap start...\n");
 
-    dbg_printf("%p\t0x%016lx\tPadding for alignment\n", words, words[0]);
+    Block_Print(NULL);
+
+    Block_Print(&words[0]);
 
     word_t *iter = &words[1];
     while (iter != Block_Get_Next_Adj(iter)) {
-        const word_t size = Block_Get_Size(iter);
-        const bool alloc = Block_Get_Alloc(iter);
-
-        dbg_printf("%p\t0x%016lx\tsize = 0x%16lx\talloc = %d\n", iter, *iter, size, alloc);
+        Block_Print(iter);
 
         iter = Block_Get_Next_Adj(iter);
     }
 
-    const word_t size = Block_Get_Size(iter);
-    const bool alloc = Block_Get_Alloc(iter);
-
-    dbg_printf("%p\t0x%016lx\tsize = 0x%16lx\talloc = %d\tEpilogue...\n", iter, *iter, size, alloc);
+    Block_Print(iter);
 
     dbg_printf("heap end...\n\n");
 
 }
-#endif // Heap_Print(void)
+#endif // Heap_Print(...)
 
 
-#ifdef DEBUG // Free_List_Print(void)
+#ifdef DEBUG // Free_List_Print(...)
 // I use this function to print the free block list in gdb using 
 // `call Free_List_Print()`
 static void Free_List_Print(void)
@@ -602,18 +623,17 @@ static void Free_List_Print(void)
 
     dbg_printf("\nFree list start...\n");
 
-    while(block) {
-        const word_t size = Block_Get_Size(block);
-        const bool alloc = Block_Get_Alloc(block);
+    Block_Print(NULL);
 
-        dbg_printf("%p\t0x%016lx\tsize = 0x%lx\talloc = %d\n", block, *block, size, alloc);
+    while(block) {
+        Block_Print(block);
 
         block = Block_Get_Next_Free(block);
     }
 
     dbg_printf("Free list end...\n\n");
 }
-#endif // Free_List_Print(void)
+#endif // Free_List_Print(...)
 
 
 /*
