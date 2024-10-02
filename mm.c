@@ -51,18 +51,16 @@
 #define memcpy mem_memcpy
 #endif /* DRIVER */
 
+typedef u_int64_t word_t;
 
-#define ALIGNMENT 0x10
-
-#define WORD_SIZE 0x8
+#define WORD_SIZE (sizeof(word_t))
+#define ALIGNMENT (2 * WORD_SIZE)
 
 // The smallest free block will at least store a header, footer, two pointers
 // and two words each of which are one word long...
 #define MIN_BLOCK_SIZE (0x04 * WORD_SIZE)
 
-
 static void *free_list_head = NULL;
-
 static void *heap_start = NULL;
 
 
@@ -76,7 +74,7 @@ static bool in_heap(const void* p)
 }
 
 
-static inline u_int64_t max_i(const u_int64_t a, const u_int64_t b)
+static inline word_t max_i(const word_t a, const word_t b)
 {
     return a > b ? a : b;
 }
@@ -89,30 +87,30 @@ static size_t align(const size_t x)
 }
 
 
-static inline u_int64_t Pack_Size_Alloc(const u_int64_t size, const bool alloc)
+static inline word_t Pack_Size_Alloc(const word_t size, const bool alloc)
 {
-    dbg_assert(size < ((u_int64_t)1 << 63) - 1);
+    dbg_assert(size < ((word_t)1 << 63) - 1);
 
-    return (size << 1 | (u_int64_t)alloc);
+    return (size << 1 | (word_t)alloc);
 }
 
 
-static inline bool Tag_Get_Alloc(const u_int64_t word)
+static inline bool Tag_Get_Alloc(const word_t word)
 {
     return word & 1;
 }
 
 
-static inline u_int64_t Tag_Get_Size(const u_int64_t word)
+static inline word_t Tag_Get_Size(const word_t word)
 {
     return word >> 1;
 }
 
 
-static inline u_int64_t Block_Get_Size(const void *block)
+static inline word_t Block_Get_Size(const void *block)
 {
-    const u_int64_t *words = block;
-    const u_int64_t size = Tag_Get_Size(words[0]);
+    const word_t *words = block;
+    const word_t size = Tag_Get_Size(words[0]);
 #ifdef DEBUG
     if (size > 0) {
         dbg_assert(words[0] == words[size / WORD_SIZE - 1]);
@@ -124,10 +122,10 @@ static inline u_int64_t Block_Get_Size(const void *block)
 
 static inline bool Block_Get_Alloc(const void *block)
 {
-    const u_int64_t *words = block;
+    const word_t *words = block;
     const bool alloc = Tag_Get_Alloc(words[0]);
 #ifdef DEBUG
-    const u_int64_t size = Tag_Get_Size(words[0]);
+    const word_t size = Tag_Get_Size(words[0]);
     if (size > 0) {
         dbg_assert(words[0] == words[size / WORD_SIZE - 1]);
     }
@@ -138,53 +136,53 @@ static inline bool Block_Get_Alloc(const void *block)
 
 static inline void *Block_Get_Prev_Free(const void *block)
 {
-    const u_int64_t *words = block;
+    const word_t *words = block;
     return (void *)words[1];
 }
 
 
 static inline void *Block_Get_Next_Free(const void *block)
 {
-    const u_int64_t *words = block;
+    const word_t *words = block;
     return (void *)words[2];
 }
 
 
 static inline void Block_Set_Next_Free(void *block, const void *next)
 {
-    u_int64_t *words = block;
-    words[2] = (u_int64_t)next;
+    word_t *words = block;
+    words[2] = (word_t)next;
 }
 
 
 static inline void Block_Set_Prev_Free(void *block, const void *prev)
 {
-    u_int64_t *words = block;
-    words[1] = (u_int64_t)prev;
+    word_t *words = block;
+    words[1] = (word_t)prev;
 }
 
 
 static inline void *Block_Get_Next_Adj(const void *block)
 {
-    const u_int64_t size = Block_Get_Size(block);
+    const word_t size = Block_Get_Size(block);
     return (char *)block + size;
 }
 
 
 static inline void *Block_Get_Prev_Adj(const void *block)
 {
-    const u_int64_t *words = block;
-    const u_int64_t prev_footer = words[-1];
+    const word_t *words = block;
+    const word_t prev_footer = words[-1];
     return (char *)block - Tag_Get_Size(prev_footer);
 }
 
 
-static inline void Block_Set_Size_Alloc(void *block, const u_int64_t size, const bool alloc)
+static inline void Block_Set_Size_Alloc(void *block, const word_t size, const bool alloc)
 {
     dbg_assert(size % (2 * WORD_SIZE) == 0);
 
-    u_int64_t *words = block;
-    const u_int64_t size_alloc_word = Pack_Size_Alloc(size, alloc);
+    word_t *words = block;
+    const word_t size_alloc_word = Pack_Size_Alloc(size, alloc);
     words[0] = size_alloc_word;
     words[size / WORD_SIZE - 1] = size_alloc_word;
 }
@@ -238,7 +236,7 @@ static void Block_Prepend_Free_List(void *block)
 
 static void *Block_Coalesce(void *block)
 {
-    u_int64_t size = Block_Get_Size(block);
+    word_t size = Block_Get_Size(block);
 
     void *prev = Block_Get_Prev_Adj(block);
     void *next = Block_Get_Next_Adj(block);
@@ -275,7 +273,7 @@ static void *Block_Coalesce(void *block)
 }
 
 
-static void *Heap_Grow(u_int64_t size)
+static void *Heap_Grow(word_t size)
 {
     dbg_assert(size % (2 * WORD_SIZE) == 0);
 
@@ -284,11 +282,11 @@ static void *Heap_Grow(u_int64_t size)
         return NULL;
     }
 
-    u_int64_t *block = (u_int64_t *)p - 1;
+    word_t *block = (word_t *)p - 1;
 
     Block_Set_Size_Alloc(block, size, false);
 
-    u_int64_t *epilogue_header = Block_Get_Next_Adj(block);
+    word_t *epilogue_header = Block_Get_Next_Adj(block);
     *epilogue_header = Pack_Size_Alloc(0, true);
 
     block = Block_Coalesce(block);
@@ -312,7 +310,7 @@ bool mm_init(void)
         return false;
     }
 
-    u_int64_t *words = heap_start;
+    word_t *words = heap_start;
 
     // padding for alignment...
     words[0] = 0;
@@ -338,7 +336,7 @@ void *malloc(const size_t size)
         return NULL;
     }
 
-    const u_int64_t aligned_size = max_i(align(size) + 2 * WORD_SIZE, MIN_BLOCK_SIZE);
+    const word_t aligned_size = max_i(align(size) + 2 * WORD_SIZE, MIN_BLOCK_SIZE);
 
     void *block = free_list_head;
     while (block &&
@@ -359,7 +357,7 @@ void *malloc(const size_t size)
         }
     }
 
-    u_int64_t block_size = Block_Get_Size(block);
+    word_t block_size = Block_Get_Size(block);
 
     if (block_size - aligned_size < MIN_BLOCK_SIZE) {
         // the block doesn't have excess space to split and produce a free
@@ -393,7 +391,7 @@ void free(void* ptr)
 
     void *block = (char *)ptr - WORD_SIZE;
 
-    const u_int64_t size = Block_Get_Size(block);
+    const word_t size = Block_Get_Size(block);
     Block_Set_Size_Alloc(block, size, false);
     Block_Coalesce(block);
 }
@@ -416,10 +414,10 @@ void *realloc(void *ptr, const size_t size)
         return malloc(size);
     }
 
-    const u_int64_t aligned_size = max_i((align(size) + 2 * WORD_SIZE), MIN_BLOCK_SIZE);
+    const word_t aligned_size = max_i((align(size) + 2 * WORD_SIZE), MIN_BLOCK_SIZE);
 
-    void *block = (u_int64_t *)ptr - 1;
-    const u_int64_t old_size = Block_Get_Size(block);
+    void *block = (word_t *)ptr - 1;
+    const word_t old_size = Block_Get_Size(block);
 
     // we are shrinking (or maintaing) block size...
     if (aligned_size <= old_size) { 
@@ -443,7 +441,7 @@ void *realloc(void *ptr, const size_t size)
 
         void *next = Block_Get_Next_Adj(block);
         const bool next_is_free = !Block_Get_Alloc(next);
-        const u_int64_t next_size = Block_Get_Size(next);
+        const word_t next_size = Block_Get_Size(next);
 
         // we found a free block next to us and it has enough free space...
         if (next_is_free && next_size + old_size >= size)  {
@@ -519,7 +517,7 @@ static void Heap_Print(void)
         return;
     }
 
-    u_int64_t *words = heap_start;
+    word_t *words = heap_start;
     
     dbg_assert(words[0] == 0);
 
@@ -527,9 +525,9 @@ static void Heap_Print(void)
 
     dbg_printf("%p\t0x%016lx\tPadding for alignment\n", words, words[0]);
 
-    u_int64_t *iter = &words[1];
+    word_t *iter = &words[1];
     do {
-        const u_int64_t size = Block_Get_Size(iter);
+        const word_t size = Block_Get_Size(iter);
         const bool alloc = Block_Get_Alloc(iter);
 
         dbg_printf("%p\t0x%016lx\tsize = 0x%16lx\talloc = %d\n", iter, *iter, size, alloc);
@@ -537,7 +535,7 @@ static void Heap_Print(void)
         iter = Block_Get_Next_Adj(iter);
     } while (iter != Block_Get_Next_Adj(iter));
 
-    const u_int64_t size = Block_Get_Size(iter);
+    const word_t size = Block_Get_Size(iter);
     const bool alloc = Block_Get_Alloc(iter);
 
     dbg_printf("%p\t0x%016lx\tsize = 0x%16lx\talloc = %d\tEpilogue...\n", iter, *iter, size, alloc);
@@ -553,12 +551,12 @@ static void Heap_Print(void)
 // `call Free_List_Print()`
 static void Free_List_Print(void)
 {
-    u_int64_t *block = free_list_head;
+    word_t *block = free_list_head;
 
     dbg_printf("\nFree list start...\n");
 
     while(block) {
-        const u_int64_t size = Block_Get_Size(block);
+        const word_t size = Block_Get_Size(block);
         const bool alloc = Block_Get_Alloc(block);
 
         dbg_printf("%p\t0x%016lx\tsize = 0x%lx\talloc = %d\n", block, *block, size, alloc);
