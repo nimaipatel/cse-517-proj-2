@@ -55,10 +55,12 @@ typedef u_int64_t word_t;
 
 #define WORD_SIZE (sizeof(word_t))
 #define ALIGNMENT (2 * WORD_SIZE)
+#define WORD_SIZE_BITS (8 * sizeof(word_t))
 
 // The smallest free block will at least store a header, footer, two pointers
 // and two words each of which are one word long...
 #define MIN_BLOCK_SIZE (0x04 * WORD_SIZE)
+
 
 static void *free_list_head = NULL;
 static void *heap_start = NULL;
@@ -81,37 +83,44 @@ static inline word_t max_i(const word_t a, const word_t b)
 
 
 /* rounds up to the nearest multiple of ALIGNMENT */
-static size_t align(const size_t x)
+static inline size_t align(const size_t x)
 {
     return ALIGNMENT * ((x+ALIGNMENT-1)/ALIGNMENT);
 }
 
 
+/* packs a size and allocation status bit into a single word which will be used
+ * as a block tag i.e. header or footer*/
 static inline word_t Pack_Size_Alloc(const word_t size, const bool alloc)
 {
-    dbg_assert(size < ((word_t)1 << 63) - 1);
+    dbg_assert(size < ((word_t)1 << (WORD_SIZE_BITS - 1)) - 1);
 
     return (size << 1 | (word_t)alloc);
 }
 
 
+/* get allocation status of block from a tag */
 static inline bool Tag_Get_Alloc(const word_t word)
 {
     return word & 1;
 }
 
 
+/* get size of block from a tag */
 static inline word_t Tag_Get_Size(const word_t word)
 {
     return word >> 1;
 }
 
 
+/* get size of block, `block` is a pointer to start of the block */
 static inline word_t Block_Get_Size(const void *block)
 {
     const word_t *words = block;
     const word_t size = Tag_Get_Size(words[0]);
 #ifdef DEBUG
+    // we need to check if size is non-zero, since this calculation won't work
+    // on special epilogue tag
     if (size > 0) {
         dbg_assert(words[0] == words[size / WORD_SIZE - 1]);
     }
@@ -120,12 +129,15 @@ static inline word_t Block_Get_Size(const void *block)
 }
 
 
+/* get allocation status of block, `block` is a pointer to start of the block */
 static inline bool Block_Get_Alloc(const void *block)
 {
     const word_t *words = block;
     const bool alloc = Tag_Get_Alloc(words[0]);
 #ifdef DEBUG
     const word_t size = Tag_Get_Size(words[0]);
+    // we need to check if size is non-zero, since this calculation won't work
+    // on special epilogue tag
     if (size > 0) {
         dbg_assert(words[0] == words[size / WORD_SIZE - 1]);
     }
@@ -134,6 +146,7 @@ static inline bool Block_Get_Alloc(const void *block)
 }
 
 
+/* get free block in the free list, before `block` */
 static inline void *Block_Get_Prev_Free(const void *block)
 {
     const word_t *words = block;
@@ -141,6 +154,7 @@ static inline void *Block_Get_Prev_Free(const void *block)
 }
 
 
+/* get free block in the free list, after `block` */
 static inline void *Block_Get_Next_Free(const void *block)
 {
     const word_t *words = block;
@@ -148,13 +162,7 @@ static inline void *Block_Get_Next_Free(const void *block)
 }
 
 
-static inline void Block_Set_Next_Free(void *block, const void *next)
-{
-    word_t *words = block;
-    words[2] = (word_t)next;
-}
-
-
+/* set the prev pointer of the free block */
 static inline void Block_Set_Prev_Free(void *block, const void *prev)
 {
     word_t *words = block;
@@ -162,13 +170,15 @@ static inline void Block_Set_Prev_Free(void *block, const void *prev)
 }
 
 
-static inline void *Block_Get_Next_Adj(const void *block)
+/* set the next pointer of the free block */
+static inline void Block_Set_Next_Free(void *block, const void *next)
 {
-    const word_t size = Block_Get_Size(block);
-    return (char *)block + size;
+    word_t *words = block;
+    words[2] = (word_t)next;
 }
 
 
+/* get the block before the given block in the heap */
 static inline void *Block_Get_Prev_Adj(const void *block)
 {
     const word_t *words = block;
@@ -177,6 +187,16 @@ static inline void *Block_Get_Prev_Adj(const void *block)
 }
 
 
+/* get the block right after the given block in the heap */
+static inline void *Block_Get_Next_Adj(const void *block)
+{
+    const word_t size = Block_Get_Size(block);
+    return (char *)block + size;
+}
+
+
+/* set the size and allocation status of given block, this edits both the
+ * header and footer of the block */
 static inline void Block_Set_Size_Alloc(void *block, const word_t size, const bool alloc)
 {
     dbg_assert(size % (2 * WORD_SIZE) == 0);
@@ -192,7 +212,7 @@ static void Block_Unlink_Free_List(const void *block)
 {
     dbg_assert(free_list_head != NULL);
 
-    // TODO: add an assert to check that block exisits in the freelist
+    // TODO: add an assert to check that block exists in the freelist
 
     void *prev = Block_Get_Prev_Free(block);
     void *next = Block_Get_Next_Free(block);
@@ -364,6 +384,7 @@ void *malloc(const size_t size)
 
     void *best_block = block;
 
+#if 0
     // keep searching for a better fit upto a limit...
     while (block && counter < 0x10) {
 
@@ -382,6 +403,7 @@ void *malloc(const size_t size)
 
         block = Block_Get_Next_Free(block);
     }
+#endif
 
     block = best_block;
 
@@ -487,14 +509,14 @@ void *realloc(void *ptr, const size_t size)
 
             Block_Unlink_Free_List(next);
 
-            if (next_size + old_size - aligned_size <= MIN_BLOCK_SIZE) {
+            if (next_size + old_size - aligned_size < MIN_BLOCK_SIZE) {
                 // the free block will be entirely used...
 
                 Block_Set_Size_Alloc(block, next_size + old_size, true);
                 return ptr;
 
             } else {
-                // the free block next to us has more space then we need for
+                // the free block next to us has more space than we need for
                 // expanding, it will spawn a new free block...
 
                 Block_Set_Size_Alloc(block, aligned_size, true);
@@ -567,14 +589,14 @@ static void Heap_Print(void)
     dbg_printf("%p\t0x%016lx\tPadding for alignment\n", words, words[0]);
 
     word_t *iter = &words[1];
-    do {
+    while (iter != Block_Get_Next_Adj(iter)) {
         const word_t size = Block_Get_Size(iter);
         const bool alloc = Block_Get_Alloc(iter);
 
         dbg_printf("%p\t0x%016lx\tsize = 0x%16lx\talloc = %d\n", iter, *iter, size, alloc);
 
         iter = Block_Get_Next_Adj(iter);
-    } while (iter != Block_Get_Next_Adj(iter));
+    }
 
     const word_t size = Block_Get_Size(iter);
     const bool alloc = Block_Get_Alloc(iter);
