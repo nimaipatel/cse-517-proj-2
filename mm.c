@@ -261,28 +261,18 @@ static void *Block_Coalesce(void *block)
     bool prev_is_free = block != prev && Block_Get_Alloc(prev) == false;
     bool next_is_free = block != next && Block_Get_Alloc(next) == false;
 
-    if (!prev_is_free && next_is_free) {
-
-        size += Block_Get_Size(next);
-        Block_Unlink_Free_List(next);
-        Block_Set_Size_Alloc(block, size, false);
-
-    } else if (prev_is_free && !next_is_free) {
-
+    if (prev_is_free) {
+        block = prev;
         size += Block_Get_Size(prev);
         Block_Unlink_Free_List(prev);
-        block = prev;
-        Block_Set_Size_Alloc(block, size, false);
-
-    } else if (prev_is_free && next_is_free) {
-
-        size += Block_Get_Size(prev) + Block_Get_Size(next);
-        Block_Unlink_Free_List(prev);
-        Block_Unlink_Free_List(next);
-        block = prev;
-        Block_Set_Size_Alloc(block, size, false);
-
     }
+
+    if (next_is_free) {
+        size += Block_Get_Size(next);
+        Block_Unlink_Free_List(next);
+    }
+
+    Block_Set_Size_Alloc(block, size, false);
 
     Block_Prepend_Free_List(block);
 
