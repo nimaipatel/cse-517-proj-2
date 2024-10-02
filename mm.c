@@ -330,7 +330,7 @@ bool mm_init(void)
 /*
  * malloc
  */
-void *malloc(size_t size)
+void *malloc(const size_t size)
 {
     mm_checkheap(__LINE__);
 
@@ -338,7 +338,7 @@ void *malloc(size_t size)
         return NULL;
     }
 
-    size = max_i(align(size) + 2 * WORD_SIZE, MIN_BLOCK_SIZE);
+    const u_int64_t aligned_size = max_i(align(size) + 2 * WORD_SIZE, MIN_BLOCK_SIZE);
 
     void *block = free_list_head;
     while (block &&
@@ -347,13 +347,13 @@ void *malloc(size_t size)
             // assert this invariant in debug mode
             (dbg_assert(Block_Get_Alloc(block) == false), true) &&
 #endif
-            Block_Get_Size(block) < size) {
+            Block_Get_Size(block) < aligned_size) {
         block = Block_Get_Next_Free(block);
     }
 
     if (!block) {
         // couldn't find any free block, need to raise heap...
-        block = Heap_Grow(size);
+        block = Heap_Grow(aligned_size);
         if (!block) {
             return NULL;
         }
@@ -361,7 +361,7 @@ void *malloc(size_t size)
 
     u_int64_t block_size = Block_Get_Size(block);
 
-    if (block_size - size < MIN_BLOCK_SIZE) {
+    if (block_size - aligned_size < MIN_BLOCK_SIZE) {
         // the block doesn't have excess space to split and produce a free
         // block...
         Block_Set_Size_Alloc(block, block_size, true);
@@ -369,11 +369,11 @@ void *malloc(size_t size)
     } else {
         // the block has excess space, it needs to be split to maximize
         // utilization...
-        Block_Set_Size_Alloc(block, size, true);
+        Block_Set_Size_Alloc(block, aligned_size, true);
         Block_Unlink_Free_List(block);
 
         void *next = Block_Get_Next_Adj(block);
-        Block_Set_Size_Alloc(next, block_size - size, false);
+        Block_Set_Size_Alloc(next, block_size - aligned_size, false);
         Block_Coalesce(next);
     }
 
