@@ -232,16 +232,14 @@ static void Block_Unlink_Free_List(const void *block)
 
 static void Block_Prepend_Free_List(void *block)
 {
-    if (free_list_head == NULL) {
-        Block_Set_Next_Free(block, NULL);
-        Block_Set_Prev_Free(block, NULL);
-        free_list_head = block;
-    } else {
-        Block_Set_Prev_Free(block, NULL);
-        Block_Set_Next_Free(block, free_list_head);
+    Block_Set_Prev_Free(block, NULL);
+    Block_Set_Next_Free(block, free_list_head);
+
+    if (free_list_head) {
         Block_Set_Prev_Free(free_list_head, block);
-        free_list_head = block;
     }
+
+    free_list_head = block;
 }
 
 
