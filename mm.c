@@ -651,9 +651,11 @@ bool mm_checkheap(int lineno)
 #ifdef DEBUG
 
     // check that all blocks in free list are free...
+    size_t n_free = 0;
     void *prev = NULL;
     void *block = free_list_head;
     while (block) {
+        n_free += 1;
         // check that blocks in free list are marked free...
         if (Block_Get_Alloc(block) == true) {
             ret = false;
@@ -672,9 +674,11 @@ bool mm_checkheap(int lineno)
         block = Block_Get_Next_Free(block);
     }
 
+    size_t n_free2 = 0;
     block = (word_t *)heap_start + 1;
     while (block != Block_Get_Next_Adj(block)) {
         if (Block_Get_Alloc(block) == false) {
+            n_free2 += 1;
             void *prev = Block_Get_Prev_Adj(block);
             void *next = Block_Get_Prev_Adj(block);
 
@@ -698,7 +702,13 @@ bool mm_checkheap(int lineno)
         block = Block_Get_Next_Adj(block);
     }
 
-    // TODO: check that every free block is in the free list...
+    if (n_free != n_free2) {
+        ret = false;
+        dbg_printf("line no: while traversing free list found %ld free blocks "
+                ", but while traversing heap, found %ld free blocks\n",
+                n_free, n_free2);
+    }
+
     // TODO: check that allocated blocks don't overlap...
     // TODO: all pointers are in the heap...
 
