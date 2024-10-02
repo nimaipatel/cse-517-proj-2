@@ -208,6 +208,9 @@ static inline void Block_Set_Size_Alloc(void *block, const word_t size, const bo
 }
 
 
+/* this function unlinks the given block from the free list, it assumes that
+ * the block exists in the free list, and that its allocation status is set to
+ * false */
 static void Block_Unlink_Free_List(const void *block)
 {
     dbg_assert(free_list_head != NULL);
@@ -230,8 +233,13 @@ static void Block_Unlink_Free_List(const void *block)
 }
 
 
+/* adds the provided block to the beginning of the free list.
+ * NOTE: Normally, we never want to call this directly, only call it through
+ * Block_Coalesce(...), unless we know that the prev and next blocks are not
+ * free, for example during initialization of the heap */
 static void Block_Prepend_Free_List(void *block)
 {
+
     Block_Set_Prev_Free(block, NULL);
     Block_Set_Next_Free(block, free_list_head);
 
