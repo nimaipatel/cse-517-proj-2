@@ -338,14 +338,25 @@ void *malloc(const size_t size)
 
     const word_t aligned_size = max_i(align(size) + 2 * WORD_SIZE, MIN_BLOCK_SIZE);
 
+    size_t counter = 0;
+
+    // find first fit...
     void *block = free_list_head;
-    while (block &&
+
+    while (block) {
+
 #ifdef DEBUG
-            // free list should only have blocks that are marked free, we
-            // assert this invariant in debug mode
-            (dbg_assert(Block_Get_Alloc(block) == false), true) &&
+            (dbg_assert(Block_Get_Alloc(block) == false));
 #endif
-            Block_Get_Size(block) < aligned_size) {
+
+        counter += 1;
+
+        const word_t curr_size = Block_Get_Size(block);
+
+        if (curr_size >= aligned_size) {
+            break;
+        }
+
         block = Block_Get_Next_Free(block);
     }
 
