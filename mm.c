@@ -76,6 +76,12 @@ static bool in_heap(const void* p)
 }
 
 
+static inline u_int64_t max_i(const u_int64_t a, const u_int64_t b)
+{
+    return a > b ? a : b;
+}
+
+
 /* rounds up to the nearest multiple of ALIGNMENT */
 static size_t align(const size_t x)
 {
@@ -297,6 +303,7 @@ static void *Heap_Grow(u_int64_t size)
 bool mm_init(void)
 {
     dbg_assert(MIN_BLOCK_SIZE % ALIGNMENT == 0);
+    dbg_assert(sizeof(void *) == WORD_SIZE);
 
     // one word for padding, one free block of minimum size and special
     // epilogue tag at the end
@@ -331,10 +338,7 @@ void *malloc(size_t size)
         return NULL;
     }
 
-    size = align(size) + 2 * WORD_SIZE;
-    if (size < MIN_BLOCK_SIZE) {
-        size = MIN_BLOCK_SIZE;
-    }
+    size = max_i(align(size) + 2 * WORD_SIZE, MIN_BLOCK_SIZE);
 
     void *block = free_list_head;
     while (block &&
@@ -412,10 +416,7 @@ void *realloc(void *ptr, const size_t size)
         return malloc(size);
     }
 
-    u_int64_t aligned_size = (align(size) + 2 * WORD_SIZE);
-    if (aligned_size < MIN_BLOCK_SIZE) {
-        aligned_size = MIN_BLOCK_SIZE;
-    }
+    const u_int64_t aligned_size = max_i((align(size) + 2 * WORD_SIZE), MIN_BLOCK_SIZE);
 
     void *block = (u_int64_t *)ptr - 1;
     const u_int64_t old_size = Block_Get_Size(block);
@@ -473,12 +474,7 @@ void *realloc(void *ptr, const size_t size)
                 return NULL;
             }
 
-            u_int64_t copy_size = old_size;
-            if (size < copy_size) {
-                copy_size = size;
-            }
-            memcpy(newptr, ptr, copy_size);
-
+            memcpy(newptr, ptr, old_size);
             free(ptr);
 
             return newptr;
