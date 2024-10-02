@@ -320,30 +320,6 @@ bool mm_init(void)
 }
 
 
-static void Block_Allocate(void *block, const u_int64_t size)
-{
-    dbg_assert(Block_Get_Alloc(block) == false);
-
-    u_int64_t block_size = Block_Get_Size(block);
-
-    if (block_size - size < MIN_BLOCK_SIZE) {
-        // the block doesn't have excess space to split and produce a free
-        // block...
-        Block_Set_Size_Alloc(block, block_size, true);
-        Block_Unlink_Free_List(block);
-    } else {
-        // the block has excess space, it needs to be split to maximize
-        // utilization...
-        Block_Set_Size_Alloc(block, size, true);
-        Block_Unlink_Free_List(block);
-        
-        void *next = Block_Get_Next_Adj(block);
-        Block_Set_Size_Alloc(next, block_size - size, false);
-        Block_Coalesce(next);
-    }
-}
-
-
 /*
  * malloc
  */
@@ -379,7 +355,24 @@ void *malloc(size_t size)
         }
     }
 
-    Block_Allocate(block, size);
+    u_int64_t block_size = Block_Get_Size(block);
+
+    if (block_size - size < MIN_BLOCK_SIZE) {
+        // the block doesn't have excess space to split and produce a free
+        // block...
+        Block_Set_Size_Alloc(block, block_size, true);
+        Block_Unlink_Free_List(block);
+    } else {
+        // the block has excess space, it needs to be split to maximize
+        // utilization...
+        Block_Set_Size_Alloc(block, size, true);
+        Block_Unlink_Free_List(block);
+
+        void *next = Block_Get_Next_Adj(block);
+        Block_Set_Size_Alloc(next, block_size - size, false);
+        Block_Coalesce(next);
+    }
+
     return (char *)block + WORD_SIZE;
 }
 
