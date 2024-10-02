@@ -217,26 +217,15 @@ static void Block_Unlink_Free_List(const void *block)
     void *prev = Block_Get_Prev_Free(block);
     void *next = Block_Get_Next_Free(block);
 
-    if (!prev && !next) {
-        dbg_assert(free_list_head == block);
-
-        free_list_head = NULL;
-
-    } else if (!prev && next) {
-        dbg_assert(free_list_head == block);
-
-        free_list_head = next;
-        Block_Set_Prev_Free(free_list_head, NULL);
-
-    } else if (prev && !next) {
-
-        Block_Set_Next_Free(prev, NULL);
-
-    } else {
-
-        Block_Set_Prev_Free(next, prev);
+    if (prev) {
         Block_Set_Next_Free(prev, next);
+    } else {
+        dbg_assert(free_list_head == block);
+        free_list_head = next;
+    }
 
+    if (next) {
+        Block_Set_Prev_Free(next, prev);
     }
 }
 
