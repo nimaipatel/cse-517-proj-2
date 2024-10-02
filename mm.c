@@ -307,7 +307,7 @@ static void *Heap_Grow(word_t size)
     *head_end = BOUNDARY_TAG;
 
     block = Block_Coalesce(block);
-    
+
     return block;
 }
 
@@ -469,7 +469,7 @@ void *realloc(void *ptr, const size_t size)
     void *block = (word_t *)ptr - 1;
     const word_t old_size = Block_Get_Size(block);
 
-    if (aligned_size <= old_size) { 
+    if (aligned_size <= old_size) {
         // we are shrinking (or maintaining) block size...
 
         if (old_size - aligned_size < MIN_BLOCK_SIZE) {
@@ -594,7 +594,7 @@ static void Heap_Print(void)
     }
 
     word_t *words = heap_start;
-    
+
     dbg_assert(words[0] == BOUNDARY_TAG);
 
     dbg_printf("\nHeap start...\n");
@@ -619,7 +619,7 @@ static void Heap_Print(void)
 
 
 #ifdef DEBUG // Free_List_Print(...)
-// I use this function to print the free block list in gdb using 
+// I use this function to print the free block list in gdb using
 // `call Free_List_Print()`
 static void Free_List_Print(void)
 {
