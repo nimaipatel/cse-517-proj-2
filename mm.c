@@ -61,6 +61,9 @@ typedef u_int64_t word_t;
 // and two words each of which are one word long...
 #define MIN_BLOCK_SIZE (0x04 * WORD_SIZE)
 
+// Decided this by trying different values
+// TODO: what could be a better way to decide this?
+#define BEST_FIT_SEARCH_LIMIT 0x30
 
 static void *free_list_head = NULL;
 static void *heap_start = NULL;
@@ -345,6 +348,7 @@ void *malloc(const size_t size)
 
     const word_t aligned_size = max_i(align(size) + 2 * WORD_SIZE, MIN_BLOCK_SIZE);
 
+    // keeps track of number of blocks searched...
     size_t counter = 0;
 
     // find first fit...
@@ -369,9 +373,8 @@ void *malloc(const size_t size)
 
     void *best_block = block;
 
-#if 1
-    // keep searching for a better fit upto a limit...
-    while (block && counter < 0x10) {
+    // keep searching for a better fit up to a limit...
+    while (block && counter < BEST_FIT_SEARCH_LIMIT) {
 
 #ifdef DEBUG
             (dbg_assert(Block_Get_Alloc(block) == false));
@@ -388,7 +391,6 @@ void *malloc(const size_t size)
 
         block = Block_Get_Next_Free(block);
     }
-#endif
 
     block = best_block;
 
