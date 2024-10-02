@@ -310,23 +310,21 @@ bool mm_init(void)
     dbg_assert(MIN_BLOCK_SIZE % ALIGNMENT == 0);
     dbg_assert(sizeof(void *) == WORD_SIZE);
 
-    // one word for padding, one free block of minimum size and special
-    // epilogue tag at the end
-    heap_start = mem_sbrk(WORD_SIZE + MIN_BLOCK_SIZE + WORD_SIZE);
+    // one word each for the special tags at start and end of the heap...
+    heap_start = mem_sbrk(WORD_SIZE + WORD_SIZE);
     if (heap_start == NULL) {
         return false;
     }
 
+    // re-initialize the free_list_head to NULL in case mm_init() is called
+    // multiple times
+    free_list_head = NULL;
+
     word_t *words = heap_start;
 
-    // padding for alignment...
-    words[0] = 0;
-
-    Block_Set_Size_Alloc(&words[1], MIN_BLOCK_SIZE, false);
-    free_list_head = NULL;
-    Block_Prepend_Free_List(&words[1]);
-
-    words[7] = Pack_Size_Alloc(0, true);
+    // special tags at start and end of the heap...
+    words[0] = Pack_Size_Alloc(0, true);
+    words[1] = Pack_Size_Alloc(0, true);
 
     return true;
 }
