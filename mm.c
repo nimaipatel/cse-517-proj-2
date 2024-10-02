@@ -192,6 +192,8 @@ static void Block_Unlink_Free_List(const void *block)
 {
     dbg_assert(free_list_head != NULL);
 
+    // TODO: add an assert to check that block exisits in the freelist
+
     void *prev = Block_Get_Prev_Free(block);
     void *next = Block_Get_Next_Free(block);
 
@@ -360,6 +362,29 @@ void *malloc(const size_t size)
         block = Block_Get_Next_Free(block);
     }
 
+    void *best_block = block;
+
+    // keep searching for a better fit upto a limit...
+    while (block && counter < 0x10) {
+
+#ifdef DEBUG
+            (dbg_assert(Block_Get_Alloc(block) == false));
+#endif
+
+        counter += 1;
+
+        const word_t curr_size = Block_Get_Size(block);
+        const word_t best_size = Block_Get_Size(best_block);
+
+        if (aligned_size <= curr_size && curr_size < best_size) {
+            best_block = block;
+        }
+
+        block = Block_Get_Next_Free(block);
+    }
+
+    block = best_block;
+
     if (!block) {
         // couldn't find any free block, need to raise heap...
         block = Heap_Grow(aligned_size);
@@ -454,19 +479,24 @@ void *realloc(void *ptr, const size_t size)
         const bool next_is_free = !Block_Get_Alloc(next);
         const word_t next_size = Block_Get_Size(next);
 
-        // we found a free block next to us and it has enough free space...
         if (next_is_free && next_size + old_size >= size)  {
+            // we found a free block next to us and it has enough free space...
+
+            // TODO: this if brach needs to be fixed, run with mix-realloc
+            // trace to find crash
 
             Block_Unlink_Free_List(next);
 
-            // the free block will be entirely used...
             if (next_size + old_size - aligned_size <= MIN_BLOCK_SIZE) {
+                // the free block will be entirely used...
+
                 Block_Set_Size_Alloc(block, next_size + old_size, true);
                 return ptr;
-            } else {
 
+            } else {
                 // the free block next to us has more space then we need for
                 // expanding, it will spawn a new free block...
+
                 Block_Set_Size_Alloc(block, aligned_size, true);
 
                 next = Block_Get_Next_Adj(block);
