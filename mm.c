@@ -360,10 +360,7 @@ void *malloc(const size_t size)
     void *block = free_list_head;
 
     while (block) {
-
-#ifdef DEBUG
-            (dbg_assert(Block_Get_Alloc(block) == false));
-#endif
+        dbg_assert(Block_Get_Alloc(block) == false);
 
         counter += 1;
 
@@ -380,10 +377,7 @@ void *malloc(const size_t size)
 
     // keep searching for a better fit up to a limit...
     while (block && counter < BEST_FIT_SEARCH_LIMIT) {
-
-#ifdef DEBUG
-            (dbg_assert(Block_Get_Alloc(block) == false));
-#endif
+        dbg_assert(Block_Get_Alloc(block) == false);
 
         counter += 1;
 
@@ -425,7 +419,7 @@ void *malloc(const size_t size)
         Block_Coalesce(next);
     }
 
-    return (char *)block + WORD_SIZE;
+    return (word_t *)block + 1;
 }
 
 /*
@@ -439,7 +433,7 @@ void free(void* ptr)
         return;
     }
 
-    void *block = (char *)ptr - WORD_SIZE;
+    void *block = (word_t *)ptr - 1;
 
     const word_t size = Block_Get_Size(block);
     Block_Set_Size_Alloc(block, size, false);
@@ -575,7 +569,7 @@ static void Block_Print(void *block)
     word_t *word = block;
     const bool alloc = Block_Get_Alloc(block);
     const word_t size = Block_Get_Size(block);
-    const char *alloc_str = alloc ? " true" : "false";
+    const char *alloc_str = alloc ? "true" : "false";
 
     const char *fmt = "  0x%016lx" "  0x%016lx" "  0x%016lx" "  %18s" "\n";
     dbg_printf(fmt, word, *word, size, alloc_str);
