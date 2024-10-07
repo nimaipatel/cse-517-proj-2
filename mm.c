@@ -266,7 +266,7 @@ static void Block_Prepend_Free_List(void *block)
 // TODO: can this me merged with Block_Coalesce(...)
 // TODO: can this be eliminated with functions that can set header and footer
 // of blocks?
-static void Block_Inform_Next(word_t *prev)
+static word_t *Block_Inform_Next(word_t *prev)
 {
     word_t *next = Block_Get_Next_Adj(prev);
     const size_t size = Block_Get_Size(next);
@@ -277,6 +277,7 @@ static void Block_Inform_Next(word_t *prev)
     if (!alloc) {
         next[size - 1] = tag;
     }
+    return next;
 }
 
 // Coalesce the block that is newly marked as free and add it to the free list
@@ -322,7 +323,25 @@ static inline word_t *Block_Free(word_t *block, const size_t size, const bool pr
 }
 
 
-// Raise the heap by size number of bytes and return the new free block it
+// this can be a newly unlinked or already allocated block...
+static word_t *Block_Alloc(word_t *block, const size_t block_size, const size_t alloc_size)
+{
+    const bool prev_alloc = Block_Get_Prev_Alloc(block);
+
+    if (block_size - alloc_size < MIN_BLOCK_SIZE) {
+        const word_t tag = Tag_Pack(block_size, true, prev_alloc);
+        block[0] = tag;
+        return Block_Inform_Next(block);
+    } else {
+        const word_t tag = Tag_Pack(alloc_size, true, prev_alloc);
+        block[0] = tag;
+        word_t *next = Block_Get_Next_Adj(block);
+        return Block_Free(next, block_size - alloc_size, true);
+    }
+}
+
+
+// Raise the heap by size number of words and return the new free block it
 // created, the block is initialized and coalesced
 static word_t *Heap_Grow(size_t size)
 {
@@ -435,26 +454,8 @@ void *malloc(const size_t size)
         }
     }
 
-    const size_t block_size = Block_Get_Size(block);
-    const bool prev_alloc = Block_Get_Prev_Alloc(block);
-
     Block_Unlink_Free_List(block);
-    if (block_size - aligned_size < MIN_BLOCK_SIZE) {
-        // the block doesn't have excess space to split and produce a free
-        // block...
-        const word_t tag = Tag_Pack(block_size, true, prev_alloc);
-        block[0] = tag;
-        Block_Inform_Next(block);
-
-    } else {
-        // the block has excess space, it needs to be split to maximize
-        // utilization...
-        const word_t tag = Tag_Pack(aligned_size, true, prev_alloc);
-        block[0] = tag;
-
-        word_t *next = Block_Get_Next_Adj(block);
-        Block_Free(next, block_size - aligned_size, true);
-    }
+    Block_Alloc(block, Block_Get_Size(block), aligned_size);
 
     return (word_t *)block + 1;
 }
@@ -503,76 +504,32 @@ void *realloc(void *ptr, const size_t size)
 
     if (aligned_size <= old_size) {
         // we are shrinking (or maintaining) block size...
-
-        if (old_size - aligned_size < MIN_BLOCK_SIZE) {
-            // ...but there is NOT enough space to spawn a new free block...
-            return ptr;
-
-        } else {
-            // there is enough space to spawn a new free block...
-            // NOTE: adding this case did not increase performance for some
-            // reason
-
-            const bool prev_alloc = Block_Get_Prev_Alloc(block);
-            const word_t tag = Tag_Pack(aligned_size, true, prev_alloc);
-            block[0] = tag;
-
-            word_t *next = Block_Get_Next_Adj(block);
-            Block_Free(next, old_size - aligned_size, true);
-
-            return ptr;
-
-        }
-
-    } else {
-        // we are expanding the block size...
-
-        word_t *next = Block_Get_Next_Adj(block);
-        const bool next_is_free = !Block_Get_Alloc(next);
-        size_t next_size = Block_Get_Size(next);
-
-        if (next_is_free && next_size + old_size >= aligned_size)  {
-            // we found a free block next to us and it has enough free space...
-
-            Block_Unlink_Free_List(next);
-
-            if (next_size + old_size - aligned_size < MIN_BLOCK_SIZE) {
-                // the free block will be entirely used...
-
-                const bool prev_alloc = Block_Get_Prev_Alloc(block);
-                const word_t tag = Tag_Pack(next_size + old_size, true, prev_alloc);
-                block[0] = tag;
-                Block_Inform_Next(block);
-                return ptr;
-
-            } else {
-                // the free block next to us has more space than we need for
-                // expanding, it will spawn a new free block...
-
-                const bool prev_alloc = Block_Get_Prev_Alloc(block);
-                const word_t tag = Tag_Pack(aligned_size, true, prev_alloc);
-                block[0] = tag;
-
-                next = Block_Get_Next_Adj(block);
-                next_size = next_size + old_size - aligned_size;
-                Block_Free(next, next_size, true);
-                return ptr;
-            }
-
-
-        } else {
-
-            void *newptr = malloc(size);
-            if(!newptr) {
-                return NULL;
-            }
-
-            memcpy(newptr, ptr, old_size * WORD_SIZE);
-            free(ptr);
-
-            return newptr;
-        }
+        Block_Alloc(block, Block_Get_Size(block), aligned_size);
+        return ptr;
     }
+
+    // we are expanding the block size...
+    word_t *next = Block_Get_Next_Adj(block);
+    const bool next_is_free = !Block_Get_Alloc(next);
+    size_t next_size = Block_Get_Size(next);
+
+    if (next_is_free && next_size + old_size >= aligned_size)  {
+        // we found a free block next to us and it has enough free space...
+        Block_Unlink_Free_List(next);
+        Block_Alloc(block, old_size + next_size, aligned_size);
+        return ptr;
+    }
+
+    // if nothing works, just do the dumb thing...
+    void *newptr = malloc(size);
+    if(!newptr) {
+        return NULL;
+    }
+
+    memcpy(newptr, ptr, old_size * WORD_SIZE);
+    free(ptr);
+
+    return newptr;
 
 }
 
