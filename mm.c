@@ -124,6 +124,12 @@ static inline word_t Tag_Get_Prev_Alloc(const word_t word)
 }
 
 
+static inline word_t Block_Get_Prev_Alloc(const word_t *block)
+{
+    return Tag_Get_Prev_Alloc(block[0]);
+}
+
+
 /* get size of block, `block` is a pointer to start of the block */
 static inline word_t Block_Get_Size(const void *block)
 {
@@ -267,10 +273,10 @@ static void *Block_Coalesce(word_t *block)
         Block_Unlink_Free_List(next);
     }
 
-    bool prev_alloc = Tag_Get_Prev_Alloc(*block);
+    bool prev_alloc = Block_Get_Prev_Alloc(block);
     if (!prev_alloc) {
         word_t *prev = Block_Get_Prev_Adj(block);
-        prev_alloc = Tag_Get_Prev_Alloc(*prev);
+        prev_alloc = Block_Get_Prev_Alloc(prev);
         size += Block_Get_Size(prev);
         Block_Unlink_Free_List(prev);
         block = prev;
@@ -297,7 +303,7 @@ static void *Heap_Grow(word_t size)
 
     // get allocation status of the previous block...
     const word_t *old_boundary_block = p - 1;
-    const bool prev_alloc = Tag_Get_Prev_Alloc(*old_boundary_block);
+    const bool prev_alloc = Block_Get_Prev_Alloc(old_boundary_block);
 
     // set header and footer of new free block...
     word_t *block = p - 1;
@@ -405,7 +411,7 @@ void *malloc(const size_t size)
     }
 
     const word_t block_size = Block_Get_Size(block);
-    const bool prev_alloc = Tag_Get_Prev_Alloc(*block);
+    const bool prev_alloc = Block_Get_Prev_Alloc(block);
 
     Block_Unlink_Free_List(block);
     if (block_size - aligned_size < MIN_BLOCK_SIZE) {
@@ -448,7 +454,7 @@ void free(void *ptr)
     word_t *block = (word_t *)ptr - 1;
 
     const word_t size = Block_Get_Size(block);
-    const bool prev_alloc = Tag_Get_Prev_Alloc(*block);
+    const bool prev_alloc = Block_Get_Prev_Alloc(block);
     const word_t tag = Tag_Pack(size, false, prev_alloc);
     block[0] = tag;
     block[size / WORD_SIZE - 1] = tag;
@@ -491,7 +497,7 @@ void *realloc(void *ptr, const size_t size)
             // NOTE: adding this case did not increase performance for some
             // reason
 
-            const bool prev_alloc = Tag_Get_Prev_Alloc(*block);
+            const bool prev_alloc = Block_Get_Prev_Alloc(block);
             const word_t tag = Tag_Pack(aligned_size, true, prev_alloc);
             block[0] = tag;
 
@@ -522,7 +528,7 @@ void *realloc(void *ptr, const size_t size)
             if (next_size + old_size - aligned_size < MIN_BLOCK_SIZE) {
                 // the free block will be entirely used...
 
-                const bool prev_alloc = Tag_Get_Prev_Alloc(*block);
+                const bool prev_alloc = Block_Get_Prev_Alloc(block);
                 const word_t tag = Tag_Pack(next_size + old_size, true, prev_alloc);
                 block[0] = tag;
                 Block_Inform_Next(block);
@@ -532,7 +538,7 @@ void *realloc(void *ptr, const size_t size)
                 // the free block next to us has more space than we need for
                 // expanding, it will spawn a new free block...
 
-                const bool prev_alloc = Tag_Get_Prev_Alloc(*block);
+                const bool prev_alloc = Block_Get_Prev_Alloc(block);
                 const word_t tag = Tag_Pack(aligned_size, true, prev_alloc);
                 block[0] = tag;
 
@@ -604,7 +610,7 @@ static void Block_Print(void *block)
     const bool alloc = Block_Get_Alloc(block);
     const word_t size = Block_Get_Size(block);
     const char *alloc_str = alloc ? "true" : "false";
-    const bool prev_alloc = Tag_Get_Prev_Alloc(*word);
+    const bool prev_alloc = Block_Get_Prev_Alloc(*word);
     const char *prev_alloc_str = prev_alloc ? "true" : "false";
 
     const char *fmt = "  0x%016lx" "  0x%016lx" "  0x%016lx" "  %12s" "  %12s" "\n";
