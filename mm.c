@@ -302,6 +302,18 @@ static void *Block_Coalesce(word_t *block)
 }
 
 
+static word_t *Block_Free(word_t *block, const size_t size, const bool prev_alloc)
+{
+    // mark block as free and inform next adjacent block...
+    const word_t tag = Tag_Pack(size, false, prev_alloc);
+    block[0] = tag;
+    block[size / WORD_SIZE - 1] = tag;
+    Block_Inform_Next(block);
+
+    return Block_Coalesce(block);
+}
+
+
 // Raise the heap by size number of bytes and return the new free block it
 // created, the block is initialized and coalesced
 static word_t *Heap_Grow(size_t size)
@@ -313,21 +325,13 @@ static word_t *Heap_Grow(size_t size)
         return NULL;
     }
 
-    // get allocation status of the previous block...
-    const word_t *old_boundary_block = p - 1;
-    const bool prev_alloc = Block_Get_Prev_Alloc(old_boundary_block);
+    // set new heap end boundary tag...
+    word_t *heapend = p + size / WORD_SIZE - 1;
+    *heapend = Tag_Pack(0, true, false);
 
     // set header and footer of new free block...
     word_t *block = p - 1;
-    const word_t tag = Tag_Pack(size, false, prev_alloc);
-    block[0] = tag;
-    block[size / WORD_SIZE - 1] = tag;
-
-    // set new heap end boundary tag...
-    word_t *head_end = Block_Get_Next_Adj(block);
-    *head_end = Tag_Pack(0, true, false);
-
-    block = Block_Coalesce(block);
+    block = Block_Free(block, size, Block_Get_Prev_Alloc(block));
 
     return block;
 }
@@ -440,13 +444,7 @@ void *malloc(const size_t size)
         block[0] = tag;
 
         word_t *next = Block_Get_Next_Adj(block);
-        const word_t next_size = block_size - aligned_size;
-        const word_t next_tag = Tag_Pack(next_size, false, true);
-        next[0] = next_tag;
-        next[next_size / WORD_SIZE - 1] = next_tag;
-        Block_Inform_Next(block);
-        Block_Coalesce(next);
-
+        Block_Free(next, block_size - aligned_size, true);
     }
 
     return (word_t *)block + 1;
@@ -467,14 +465,7 @@ void free(void *ptr)
     word_t *block = (word_t *)ptr - 1;
 
     // mark block as free and inform next adjacent block...
-    const word_t size = Block_Get_Size(block);
-    const bool prev_alloc = Block_Get_Prev_Alloc(block);
-    const word_t tag = Tag_Pack(size, false, prev_alloc);
-    block[0] = tag;
-    block[size / WORD_SIZE - 1] = tag;
-    Block_Inform_Next(block);
-
-    Block_Coalesce(block);
+    Block_Free(block, Block_Get_Size(block), Block_Get_Prev_Alloc(block));
 }
 
 /*
@@ -517,12 +508,7 @@ void *realloc(void *ptr, const size_t size)
             block[0] = tag;
 
             word_t *next = Block_Get_Next_Adj(block);
-            const word_t next_size = old_size - aligned_size;
-            const word_t next_tag = Tag_Pack(next_size, false, true);
-            next[0] = next_tag;
-            next[next_size / WORD_SIZE - 1] = next_tag;
-            Block_Inform_Next(next);
-            Block_Coalesce(next);
+            Block_Free(next, old_size - aligned_size, true);
 
             return ptr;
 
@@ -559,13 +545,8 @@ void *realloc(void *ptr, const size_t size)
 
                 next = Block_Get_Next_Adj(block);
                 next_size = next_size + old_size - aligned_size;
-                const word_t next_tag = Tag_Pack(next_size, false, true);
-                next[0] = next_tag;
-                next[next_size / WORD_SIZE - 1] = next_tag;
-                Block_Inform_Next(block);
-                Block_Coalesce(next);
+                Block_Free(next, next_size, true);
                 return ptr;
-
             }
 
 
