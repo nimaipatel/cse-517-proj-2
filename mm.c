@@ -66,8 +66,8 @@ typedef u_int64_t word_t;
 // TODO: what could be a better way to decide this?
 #define BEST_FIT_SEARCH_LIMIT 0x30
 
-static void *free_list_head = NULL;
-static void *heap_start = NULL;
+static word_t *free_list_head = NULL;
+static word_t *heap_start = NULL;
 
 
 /*
@@ -131,75 +131,66 @@ static inline word_t Block_Get_Prev_Alloc(const word_t *block)
 
 
 /* get size of block, `block` is a pointer to start of the block */
-static inline word_t Block_Get_Size(const void *block)
+static inline word_t Block_Get_Size(const word_t *block)
 {
-    const word_t *words = block;
-    const word_t size = Tag_Get_Size(words[0]);
-    return size;
+    return Tag_Get_Size(block[0]);
 }
 
 
 /* get allocation status of block, `block` is a pointer to start of the block */
-static inline bool Block_Get_Alloc(const void *block)
+static inline bool Block_Get_Alloc(const word_t *block)
 {
-    const word_t *words = block;
-    const bool alloc = Tag_Get_Alloc(words[0]);
-    return alloc;
+    return Tag_Get_Alloc(block[0]);
 }
 
 
 /* get free block in the free list, before `block` */
-static inline void *Block_Get_Prev_Free(const void *block)
+static inline word_t *Block_Get_Prev_Free(const word_t *block)
 {
-    const word_t *words = block;
-    return (void *)words[1];
+    return (word_t *)block[1];
 }
 
 
 /* get free block in the free list, after `block` */
-static inline void *Block_Get_Next_Free(const void *block)
+static inline word_t *Block_Get_Next_Free(const word_t *block)
 {
-    const word_t *words = block;
-    return (void *)words[2];
+    return (word_t *)block[2];
 }
 
 
 /* set the prev pointer of the free block */
-static inline void Block_Set_Prev_Free(void *block, const void *prev)
+static inline void Block_Set_Prev_Free(word_t *block, const word_t *prev)
 {
-    word_t *words = block;
-    words[1] = (word_t)prev;
+    block[1] = (word_t)prev;
 }
 
 
 /* set the next pointer of the free block */
-static inline void Block_Set_Next_Free(void *block, const void *next)
+static inline void Block_Set_Next_Free(word_t *block, const word_t *next)
 {
-    word_t *words = block;
-    words[2] = (word_t)next;
+    block[2] = (word_t)next;
 }
 
 
 /* get the block before the given block in the heap
  * NOTE: caller should make sure previous block has a footer, i.e. is a free
  * block before calling this function... */
-static inline void *Block_Get_Prev_Adj(const void *block)
+static inline word_t *Block_Get_Prev_Adj(const word_t *block)
 {
     // we can only get the previous adjacent block, if it is free, since only
     // free blocks have footers...
     // dbg_assert(Tag_Get_Prev_Alloc(*(word_t *)block) == false);
 
-    const word_t *words = block;
-    const word_t prev_footer = words[-1];
-    return (char *)block - Tag_Get_Size(prev_footer);
+    const word_t prev_footer = block[-1];
+    return (word_t *)((char *)block - Tag_Get_Size(prev_footer));
 }
 
 
 /* get the block right after the given block in the heap */
-static inline void *Block_Get_Next_Adj(const void *block)
+static inline word_t *Block_Get_Next_Adj(const word_t *block)
 {
     const word_t size = Block_Get_Size(block);
-    return (char *)block + size;
+    return (word_t *)((char *)block + size);
 }
 
 
@@ -212,8 +203,8 @@ static void Block_Unlink_Free_List(const void *block)
 
     // TODO: add an assert to check that block exists in the freelist
 
-    void *prev = Block_Get_Prev_Free(block);
-    void *next = Block_Get_Next_Free(block);
+    word_t *prev = Block_Get_Prev_Free(block);
+    word_t *next = Block_Get_Next_Free(block);
 
     if (prev) {
         Block_Set_Next_Free(prev, next);
@@ -266,7 +257,7 @@ static void *Block_Coalesce(word_t *block)
 {
     word_t size = Block_Get_Size(block);
 
-    void *next = Block_Get_Next_Adj(block);
+    word_t *next = Block_Get_Next_Adj(block);
     bool next_alloc = block == next || Block_Get_Alloc(next) == true;
     if (!next_alloc) {
         size += Block_Get_Size(next);
@@ -292,7 +283,7 @@ static void *Block_Coalesce(word_t *block)
 }
 
 
-static void *Heap_Grow(word_t size)
+static word_t *Heap_Grow(word_t size)
 {
     dbg_assert(size % (2 * WORD_SIZE) == 0);
 
@@ -598,7 +589,7 @@ static bool aligned(const void* p)
 
 
 #ifdef DEBUG // Block_Print(...)
-static void Block_Print(void *block)
+static void Block_Print(word_t *block)
 {
     if (!block) {
         const char *fmt = "  %18s" "  %18s" "  %18s" "  %12s" "  %12s" "\n";
@@ -689,8 +680,8 @@ bool mm_checkheap(int lineno)
 
     // check that all blocks in free list are free...
     size_t n_free = 0;
-    void *prev = NULL;
-    void *block = free_list_head;
+    word_t *prev = NULL;
+    word_t *block = free_list_head;
     while (block) {
         n_free += 1;
         // check that blocks in free list are marked free...
@@ -717,7 +708,7 @@ bool mm_checkheap(int lineno)
     while (block != Block_Get_Next_Adj(block)) {
         if (Block_Get_Alloc(block) == false) {
             n_free2 += 1;
-            void *next = Block_Get_Next_Adj(block);
+            word_t *next = Block_Get_Next_Adj(block);
 
             // check that adjacent blocks are not free...
             if (prev && Block_Get_Alloc(prev) == false) {
