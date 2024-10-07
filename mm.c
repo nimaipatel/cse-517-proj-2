@@ -226,7 +226,7 @@ static void Block_Unlink_Free_List(const word_t *block)
 // NOTE: Normally, we never want to call this directly, only call it
 // through Block_Coalesce(...), unless we know that the prev and next
 // blocks are not free, for example during initialization of the heap.
-static void Block_Prepend_Free_List(void *block)
+static void Block_Prepend_Free_List(word_t *block)
 {
     Block_Set_Prev_Free(block, NULL);
     Block_Set_Next_Free(block, free_list_head);
@@ -257,7 +257,7 @@ static word_t *Block_Inform_Next(word_t *prev)
 }
 
 // Coalesce the block that is newly marked as free and add it to the free list.
-static void *Block_Coalesce(word_t *block)
+static word_t *Block_Coalesce(word_t *block)
 {
     size_t size = Block_Get_Size(block);
 
