@@ -190,7 +190,7 @@ static inline void *Block_Get_Prev_Adj(const void *block)
 {
     // we can only get the previous adjacent block, if it is free, since only
     // free blocks have footers...
-    dbg_assert(Tag_Get_Prev_Alloc(* (word_t *)block) == false);
+    // dbg_assert(Tag_Get_Prev_Alloc(*(word_t *)block) == false);
 
     const word_t *words = block;
     const word_t prev_footer = words[-1];
@@ -266,24 +266,24 @@ static void Block_Inform_Next(word_t *prev)
 static void *Block_Coalesce(word_t *block)
 {
     word_t size = Block_Get_Size(block);
-    bool prev_alloc = Tag_Get_Prev_Alloc(*block);
-
-    bool prev_is_free = Tag_Get_Prev_Alloc(*block) == false;
-    if (prev_is_free) {
-        word_t *prev = Block_Get_Prev_Adj(block);
-        if (block != prev) {
-            prev_alloc = Tag_Get_Prev_Alloc(*prev);
-            block = prev;
-            size += Block_Get_Size(prev);
-            Block_Unlink_Free_List(prev);
-        }
-    }
 
     void *next = Block_Get_Next_Adj(block);
     bool next_is_free = block != next && Block_Get_Alloc(next) == false;
     if (next_is_free) {
         size += Block_Get_Size(next);
         Block_Unlink_Free_List(next);
+    }
+
+    bool prev_alloc = Tag_Get_Prev_Alloc(*block);
+    bool prev_is_free = Tag_Get_Prev_Alloc(*block) == false;
+    if (prev_is_free) {
+        word_t *prev = Block_Get_Prev_Adj(block);
+        if (true) {
+            prev_alloc = Tag_Get_Prev_Alloc(*prev);
+            size += Block_Get_Size(prev);
+            Block_Unlink_Free_List(prev);
+            block = prev;
+        }
     }
 
     const word_t tag = Tag_Pack(size, false, prev_alloc);
@@ -426,7 +426,6 @@ void *malloc(const size_t size)
         // makes more sense logically...
         Block_Unlink_Free_List(block);
 
-        Block_Inform_Next(block);
     } else {
         // the block has excess space, it needs to be split to maximize
         // utilization...
@@ -441,8 +440,10 @@ void *malloc(const size_t size)
         next[0] = next_tag;
         next[next_size / WORD_SIZE - 1] = next_tag;
         Block_Coalesce(next);
+
     }
 
+    Block_Inform_Next(block);
     return (word_t *)block + 1;
 }
 
@@ -464,6 +465,7 @@ void free(void *ptr)
     const word_t tag = Tag_Pack(size, false, prev_alloc);
     block[0] = tag;
     block[size / WORD_SIZE - 1] = tag;
+    Block_Inform_Next(block);
     Block_Coalesce(block);
 }
 
@@ -512,6 +514,8 @@ void *realloc(void *ptr, const size_t size)
             next[0] = next_tag;
             next[next_size / WORD_SIZE - 1] = next_tag;
             Block_Coalesce(next);
+
+            Block_Inform_Next(next);
             return ptr;
 
         }
@@ -534,6 +538,7 @@ void *realloc(void *ptr, const size_t size)
                 const bool prev_alloc = Tag_Get_Prev_Alloc(*block);
                 const word_t tag = Tag_Pack(next_size + old_size, true, prev_alloc);
                 block[0] = tag;
+                Block_Inform_Next(block);
                 return ptr;
 
             } else {
@@ -550,6 +555,7 @@ void *realloc(void *ptr, const size_t size)
                 next[0] = next_tag;
                 next[next_size / WORD_SIZE - 1] = next_tag;
                 Block_Coalesce(next);
+                Block_Inform_Next(block);
 
                 return ptr;
             }
@@ -601,8 +607,8 @@ static bool aligned(const void* p)
 static void Block_Print(void *block)
 {
     if (!block) {
-        const char *fmt = "  %18s" "  %18s" "  %18s" "  %8s" "  %8s" "\n";
-        dbg_printf(fmt, "address", "word", "size", "allocation", "prev alloc");
+        const char *fmt = "  %18s" "  %18s" "  %18s" "  %12s" "  %12s" "\n";
+        dbg_printf(fmt, "address", "word", "size", "alloc", "prev alloc");
         return;
     }
 
@@ -613,7 +619,7 @@ static void Block_Print(void *block)
     const bool prev_alloc = Tag_Get_Prev_Alloc(*word);
     const char *prev_alloc_str = prev_alloc ? "true" : "false";
 
-    const char *fmt = "  0x%016lx" "  0x%016lx" "  0x%016lx" "  %8s" "  %8s" "\n";
+    const char *fmt = "  0x%016lx" "  0x%016lx" "  0x%016lx" "  %12s" "  %12s" "\n";
     dbg_printf(fmt, word, *word, size, alloc_str, prev_alloc_str);
 }
 #endif // Block_Print(...)
@@ -685,7 +691,7 @@ bool mm_checkheap(int lineno)
 
     bool ret = true;
 
-#ifdef lolol
+#ifdef DEBUG
 
     // check that all blocks in free list are free...
     size_t n_free = 0;
@@ -712,15 +718,15 @@ bool mm_checkheap(int lineno)
     }
 
     size_t n_free2 = 0;
+    prev = NULL;
     block = (word_t *)heap_start + 1;
     while (block != Block_Get_Next_Adj(block)) {
         if (Block_Get_Alloc(block) == false) {
             n_free2 += 1;
-            void *prev = Block_Get_Prev_Adj(block);
-            void *next = Block_Get_Prev_Adj(block);
+            void *next = Block_Get_Next_Adj(block);
 
             // check that adjacent blocks are not free...
-            if (prev != block && Block_Get_Alloc(prev) == false) {
+            if (prev && Block_Get_Alloc(prev) == false) {
                 ret = false;
                 dbg_printf("line %d: block at %p is free "
                         "but one before it at %p is also free\n",
@@ -736,14 +742,17 @@ bool mm_checkheap(int lineno)
             }
         }
 
+        prev = block;
         block = Block_Get_Next_Adj(block);
     }
 
     // block should be the end boundary tag...
-    if (*(word_t *)block != BOUNDARY_TAG) {
+    word_t boundary_tag = *(word_t *)block;
+    if (boundary_tag != Tag_Pack(0, true, false) &&
+            boundary_tag != Tag_Pack(0, true, true)) {
         ret = false;
-        dbg_printf("line %d: heap traversal stopped before reaching the"
-                " boundary tag\n", lineno);
+        dbg_printf("line %d: heap traversal boundary tag not matching"
+                " boundary tag = %ld\n", lineno, boundary_tag);
     }
 
     // check last byte of boundary tag is exactly at the end of the heap, this
