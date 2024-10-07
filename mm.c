@@ -7,11 +7,27 @@
  * Name 2: Manay Lodha
  * PSU ID 2: mnl5238
  *
- * NOTE TO STUDENTS: Replace this header comment with your own header
- * comment that gives a high level description of your solution.
- * Also, read malloclab.pdf carefully and in its entirety before beginning.
+ * This is a malloc implementation that returns double word aligned blocks of
+ * memory
+ *
+ * All blocks store a header that is one word long. The first 62 bits (assuming
+ * a word is 64 bits on the system) are used to store the size of the block in
+ * bytes, and the next two bits are used to store the allocation status of the
+ * *previous* block and the current block.
+ *
+ * Free blocks store a footer at their last word, which is identical to the
+ * header.
+ *
+ * Free blocks use the two words right after the header to store pointers to
+ * the previous and next free blocks.
+ *
+ * We use a best fit search for finding free blocks in the free list. It
+ * searches at most BEST_FIT_SEARCH_LIMIT number of blocks (unless a block
+ * wasn't found in these many searches, in which case it will keep searching
+ * till it does find a fit).
  *
  */
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,7 +35,6 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <sys/types.h>
 
 #include "mm.h"
 #include "memlib.h"
