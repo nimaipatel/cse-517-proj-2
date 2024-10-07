@@ -93,16 +93,7 @@ static inline size_t align(const size_t x)
 }
 
 
-/* packs a size and allocation status bit into a single word which will be used
- * as a block tag i.e. header or footer*/
-static inline word_t Pack_Size_Alloc(const word_t size, const bool alloc)
-{
-    dbg_assert(size < ((word_t)1 << (WORD_SIZE_BITS - 1)) - 1);
-
-    return (size << 1 | (word_t)alloc);
-}
-
-
+// TODO: footers only need to store size with with the footer optimization now
 static inline word_t Tag_Pack(const word_t size, const bool alloc, const bool prev_alloc)
 {
     dbg_assert(size < ((word_t)1 << (WORD_SIZE_BITS - 2)) - 1);
@@ -249,7 +240,9 @@ static void Block_Prepend_Free_List(void *block)
 }
 
 
-// TODO: merge this with Block_Coalesce(...)
+// TODO: can this me merged with Block_Coalesce(...)
+// TODO: can this be eliminated with functions that can set header and footer
+// of blocks?
 static void Block_Inform_Next(word_t *prev)
 {
     word_t *next = Block_Get_Next_Adj(prev);
@@ -268,22 +261,19 @@ static void *Block_Coalesce(word_t *block)
     word_t size = Block_Get_Size(block);
 
     void *next = Block_Get_Next_Adj(block);
-    bool next_is_free = block != next && Block_Get_Alloc(next) == false;
-    if (next_is_free) {
+    bool next_alloc = block == next || Block_Get_Alloc(next) == true;
+    if (!next_alloc) {
         size += Block_Get_Size(next);
         Block_Unlink_Free_List(next);
     }
 
     bool prev_alloc = Tag_Get_Prev_Alloc(*block);
-    bool prev_is_free = Tag_Get_Prev_Alloc(*block) == false;
-    if (prev_is_free) {
+    if (!prev_alloc) {
         word_t *prev = Block_Get_Prev_Adj(block);
-        if (true) {
-            prev_alloc = Tag_Get_Prev_Alloc(*prev);
-            size += Block_Get_Size(prev);
-            Block_Unlink_Free_List(prev);
-            block = prev;
-        }
+        prev_alloc = Tag_Get_Prev_Alloc(*prev);
+        size += Block_Get_Size(prev);
+        Block_Unlink_Free_List(prev);
+        block = prev;
     }
 
     const word_t tag = Tag_Pack(size, false, prev_alloc);
@@ -417,33 +407,30 @@ void *malloc(const size_t size)
     const word_t block_size = Block_Get_Size(block);
     const bool prev_alloc = Tag_Get_Prev_Alloc(*block);
 
+    Block_Unlink_Free_List(block);
     if (block_size - aligned_size < MIN_BLOCK_SIZE) {
         // the block doesn't have excess space to split and produce a free
         // block...
         const word_t tag = Tag_Pack(block_size, true, prev_alloc);
         block[0] = tag;
-        // TODO: this doesn't affect code but we should unlink first since it
-        // makes more sense logically...
-        Block_Unlink_Free_List(block);
+        Block_Inform_Next(block);
 
     } else {
         // the block has excess space, it needs to be split to maximize
         // utilization...
-        // TODO: refactor common code from both branches of this if-else...
         const word_t tag = Tag_Pack(aligned_size, true, prev_alloc);
         block[0] = tag;
-        Block_Unlink_Free_List(block);
 
         word_t *next = Block_Get_Next_Adj(block);
         const word_t next_size = block_size - aligned_size;
         const word_t next_tag = Tag_Pack(next_size, false, true);
         next[0] = next_tag;
         next[next_size / WORD_SIZE - 1] = next_tag;
+        Block_Inform_Next(block);
         Block_Coalesce(next);
 
     }
 
-    Block_Inform_Next(block);
     return (word_t *)block + 1;
 }
 
@@ -513,9 +500,9 @@ void *realloc(void *ptr, const size_t size)
             const word_t next_tag = Tag_Pack(next_size, false, true);
             next[0] = next_tag;
             next[next_size / WORD_SIZE - 1] = next_tag;
+            Block_Inform_Next(next);
             Block_Coalesce(next);
 
-            Block_Inform_Next(next);
             return ptr;
 
         }
@@ -554,11 +541,12 @@ void *realloc(void *ptr, const size_t size)
                 const word_t next_tag = Tag_Pack(next_size, false, true);
                 next[0] = next_tag;
                 next[next_size / WORD_SIZE - 1] = next_tag;
-                Block_Coalesce(next);
                 Block_Inform_Next(block);
-
+                Block_Coalesce(next);
                 return ptr;
+
             }
+
 
         } else {
 
