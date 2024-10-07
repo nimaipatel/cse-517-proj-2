@@ -75,7 +75,7 @@ typedef u_int64_t word_t;
 
 // The smallest free block will at least store a header, footer, two pointers
 // and two words each of which are one word long...
-#define MIN_BLOCK_SIZE (0x04 * WORD_SIZE)
+#define MIN_BLOCK_SIZE (0x04)
 
 // Decided this by trying different values
 // TODO: what could be a better way to decide this?
@@ -95,7 +95,7 @@ static bool in_heap(const void* p)
 }
 
 
-static inline word_t max_i(const word_t a, const word_t b)
+static inline size_t max_i(const size_t a, const size_t b)
 {
     return a > b ? a : b;
 }
@@ -109,9 +109,10 @@ static inline size_t align(const size_t x)
 
 
 // TODO: footers only need to store size with with the footer optimization now
-static inline word_t Tag_Pack(const word_t size, const bool alloc, const bool prev_alloc)
+static inline word_t Tag_Pack(const size_t size, const bool alloc, const bool prev_alloc)
 {
-    dbg_assert(size < ((word_t)1 << (WORD_SIZE_BITS - 2)) - 1);
+    // check the size can fit in the number of bits we have available...
+    dbg_assert(size < ((size_t)1 << (WORD_SIZE_BITS - 2)) - 1);
 
     return (size << 2 | (word_t)alloc << 1 | (word_t)prev_alloc);
 }
@@ -125,30 +126,30 @@ static inline bool Tag_Get_Alloc(const word_t word)
 
 
 /* get size of block from a tag */
-static inline word_t Tag_Get_Size(const word_t word)
+static inline size_t Tag_Get_Size(const word_t word)
 {
     const word_t size = word >> 2;
-    dbg_assert(size % (2 * WORD_SIZE) == 0);
+    dbg_assert(size % 2 == 0);
     return size;
 }
 
 
 /* get previous block allocation status from a tag */
-static inline word_t Tag_Get_Prev_Alloc(const word_t word)
+static inline bool Tag_Get_Prev_Alloc(const word_t word)
 {
     return word & 1;
 }
 
 
 /* get previous block from the block */
-static inline word_t Block_Get_Prev_Alloc(const word_t *block)
+static inline bool Block_Get_Prev_Alloc(const word_t *block)
 {
     return Tag_Get_Prev_Alloc(block[0]);
 }
 
 
 /* get size of block, `block` is a pointer to start of the block */
-static inline word_t Block_Get_Size(const word_t *block)
+static inline size_t Block_Get_Size(const word_t *block)
 {
     return Tag_Get_Size(block[0]);
 }
@@ -192,29 +193,27 @@ static inline void Block_Set_Next_Free(word_t *block, const word_t *next)
 /* get the block before the given block in the heap
  * NOTE: caller should make sure previous block has a footer, i.e. is a free
  * block before calling this function... */
-static inline word_t *Block_Get_Prev_Adj(const word_t *block)
+static inline word_t *Block_Get_Prev_Adj(word_t *block)
 {
     // we can only get the previous adjacent block, if it is free, since only
     // free blocks have footers...
     // dbg_assert(Tag_Get_Prev_Alloc(*(word_t *)block) == false);
 
-    const word_t prev_footer = block[-1];
-    return (word_t *)((char *)block - Tag_Get_Size(prev_footer));
+    return block - Tag_Get_Size(block[-1]);
 }
 
 
 /* get the block right after the given block in the heap */
-static inline word_t *Block_Get_Next_Adj(const word_t *block)
+static inline word_t *Block_Get_Next_Adj(word_t *block)
 {
-    const word_t size = Block_Get_Size(block);
-    return (word_t *)((char *)block + size);
+    return block + Block_Get_Size(block);
 }
 
 
 /* this function unlinks the given block from the free list, it assumes that
  * the block exists in the free list, and that its allocation status is set to
  * false */
-static void Block_Unlink_Free_List(const void *block)
+static void Block_Unlink_Free_List(const word_t *block)
 {
     dbg_assert(free_list_head != NULL);
 
@@ -261,20 +260,20 @@ static void Block_Prepend_Free_List(void *block)
 static void Block_Inform_Next(word_t *prev)
 {
     word_t *next = Block_Get_Next_Adj(prev);
-    const word_t size = Block_Get_Size(next);
+    const size_t size = Block_Get_Size(next);
     const bool alloc = Block_Get_Alloc(next);
     const bool prev_alloc = Block_Get_Alloc(prev);
     const word_t tag = Tag_Pack(size, alloc, prev_alloc);
     next[0] = tag;
     if (!alloc) {
-        next[size / WORD_SIZE - 1] = tag;
+        next[size - 1] = tag;
     }
 }
 
 // Coalesce the block that is newly marked as free and add it to the free list
 static void *Block_Coalesce(word_t *block)
 {
-    word_t size = Block_Get_Size(block);
+    size_t size = Block_Get_Size(block);
 
     word_t *next = Block_Get_Next_Adj(block);
     bool next_alloc = block == next || Block_Get_Alloc(next) == true;
@@ -294,7 +293,7 @@ static void *Block_Coalesce(word_t *block)
 
     const word_t tag = Tag_Pack(size, false, prev_alloc);
     block[0] = tag;
-    block[size / WORD_SIZE - 1] = tag;
+    block[size - 1] = tag;
 
     Block_Prepend_Free_List(block);
 
@@ -302,12 +301,12 @@ static void *Block_Coalesce(word_t *block)
 }
 
 
-static word_t *Block_Free(word_t *block, const size_t size, const bool prev_alloc)
+static inline word_t *Block_Free(word_t *block, const size_t size, const bool prev_alloc)
 {
     // mark block as free and inform next adjacent block...
     const word_t tag = Tag_Pack(size, false, prev_alloc);
     block[0] = tag;
-    block[size / WORD_SIZE - 1] = tag;
+    block[size - 1] = tag;
     Block_Inform_Next(block);
 
     return Block_Coalesce(block);
@@ -318,15 +317,15 @@ static word_t *Block_Free(word_t *block, const size_t size, const bool prev_allo
 // created, the block is initialized and coalesced
 static word_t *Heap_Grow(size_t size)
 {
-    dbg_assert(size % (2 * WORD_SIZE) == 0);
+    dbg_assert(size % 2 == 0);
 
-    word_t *p = mem_sbrk(size);
+    word_t *p = mem_sbrk(size * WORD_SIZE);
     if (p == NULL) {
         return NULL;
     }
 
     // set new heap end boundary tag...
-    word_t *heapend = p + size / WORD_SIZE - 1;
+    word_t *heapend = p + size - 1;
     *heapend = Tag_Pack(0, true, false);
 
     // set header and footer of new free block...
@@ -376,7 +375,8 @@ void *malloc(const size_t size)
         return NULL;
     }
 
-    const word_t aligned_size = max_i(align(size + WORD_SIZE), MIN_BLOCK_SIZE);
+    const size_t aligned_size = max_i(align(size + WORD_SIZE) / WORD_SIZE,
+            MIN_BLOCK_SIZE);
 
     // keeps track of number of blocks searched...
     size_t counter = 0;
@@ -389,7 +389,7 @@ void *malloc(const size_t size)
 
         counter += 1;
 
-        const word_t curr_size = Block_Get_Size(block);
+        const size_t curr_size = Block_Get_Size(block);
 
         if (curr_size >= aligned_size) {
             break;
@@ -406,8 +406,8 @@ void *malloc(const size_t size)
 
         counter += 1;
 
-        const word_t curr_size = Block_Get_Size(block);
-        const word_t best_size = Block_Get_Size(best_block);
+        const size_t curr_size = Block_Get_Size(block);
+        const size_t best_size = Block_Get_Size(best_block);
 
         if (aligned_size <= curr_size && curr_size < best_size) {
             best_block = block;
@@ -426,7 +426,7 @@ void *malloc(const size_t size)
         }
     }
 
-    const word_t block_size = Block_Get_Size(block);
+    const size_t block_size = Block_Get_Size(block);
     const bool prev_alloc = Block_Get_Prev_Alloc(block);
 
     Block_Unlink_Free_List(block);
@@ -486,10 +486,11 @@ void *realloc(void *ptr, const size_t size)
         return malloc(size);
     }
 
-    const word_t aligned_size = max_i(align(size + WORD_SIZE), MIN_BLOCK_SIZE);
+    const size_t aligned_size = max_i(align(size + WORD_SIZE) / WORD_SIZE,
+            MIN_BLOCK_SIZE);
 
     word_t *block = (word_t *)ptr - 1;
-    const word_t old_size = Block_Get_Size(block);
+    const size_t old_size = Block_Get_Size(block);
 
     if (aligned_size <= old_size) {
         // we are shrinking (or maintaining) block size...
@@ -519,7 +520,7 @@ void *realloc(void *ptr, const size_t size)
 
         word_t *next = Block_Get_Next_Adj(block);
         const bool next_is_free = !Block_Get_Alloc(next);
-        word_t next_size = Block_Get_Size(next);
+        size_t next_size = Block_Get_Size(next);
 
         if (next_is_free && next_size + old_size >= aligned_size)  {
             // we found a free block next to us and it has enough free space...
@@ -557,7 +558,7 @@ void *realloc(void *ptr, const size_t size)
                 return NULL;
             }
 
-            memcpy(newptr, ptr, old_size);
+            memcpy(newptr, ptr, old_size * WORD_SIZE);
             free(ptr);
 
             return newptr;
@@ -604,7 +605,7 @@ static void Block_Print(word_t *block)
 
     word_t *word = block;
     const bool alloc = Block_Get_Alloc(block);
-    const word_t size = Block_Get_Size(block);
+    const size_t size = Block_Get_Size(block);
     const char *alloc_str = alloc ? "true" : "false";
     const bool prev_alloc = Block_Get_Prev_Alloc(*word);
     const char *prev_alloc_str = prev_alloc ? "true" : "false";
