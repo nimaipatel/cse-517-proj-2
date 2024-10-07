@@ -133,12 +133,14 @@ static inline word_t Tag_Get_Size(const word_t word)
 }
 
 
+/* get previous block allocation status from a tag */
 static inline word_t Tag_Get_Prev_Alloc(const word_t word)
 {
     return word & 1;
 }
 
 
+/* get previous block from the block */
 static inline word_t Block_Get_Prev_Alloc(const word_t *block)
 {
     return Tag_Get_Prev_Alloc(block[0]);
@@ -252,6 +254,7 @@ static void Block_Prepend_Free_List(void *block)
 }
 
 
+// Updates the prev_alloc bit for the block after prev
 // TODO: can this me merged with Block_Coalesce(...)
 // TODO: can this be eliminated with functions that can set header and footer
 // of blocks?
@@ -268,6 +271,7 @@ static void Block_Inform_Next(word_t *prev)
     }
 }
 
+// Coalesce the block that is newly marked as free and add it to the free list
 static void *Block_Coalesce(word_t *block)
 {
     word_t size = Block_Get_Size(block);
@@ -298,7 +302,9 @@ static void *Block_Coalesce(word_t *block)
 }
 
 
-static word_t *Heap_Grow(word_t size)
+// Raise the heap by size number of bytes and return the new free block it
+// created, the block is initialized and coalesced
+static word_t *Heap_Grow(size_t size)
 {
     dbg_assert(size % (2 * WORD_SIZE) == 0);
 
@@ -457,14 +463,17 @@ void free(void *ptr)
         return;
     }
 
+    // get the block pointer from the data pointer...
     word_t *block = (word_t *)ptr - 1;
 
+    // mark block as free and inform next adjacent block...
     const word_t size = Block_Get_Size(block);
     const bool prev_alloc = Block_Get_Prev_Alloc(block);
     const word_t tag = Tag_Pack(size, false, prev_alloc);
     block[0] = tag;
     block[size / WORD_SIZE - 1] = tag;
     Block_Inform_Next(block);
+
     Block_Coalesce(block);
 }
 
