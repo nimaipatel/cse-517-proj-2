@@ -155,6 +155,15 @@ static inline size_t Block_Get_Size(const word_t *block)
 }
 
 
+/* get the size of the block before the given block in the heap.
+ * NOTE: caller should make sure previous block has a footer, i.e. is a free
+ * block before calling this function... */
+static inline size_t Block_Get_Prev_Size(const word_t *block)
+{
+    return Tag_Get_Size(block[-1]);
+}
+
+
 /* get allocation status of block, `block` is a pointer to start of the block */
 static inline bool Block_Get_Alloc(const word_t *block)
 {
@@ -199,7 +208,7 @@ static inline word_t *Block_Get_Prev_Adj(word_t *block)
     // free blocks have footers...
     // dbg_assert(Tag_Get_Prev_Alloc(*(word_t *)block) == false);
 
-    return block - Tag_Get_Size(block[-1]);
+    return block - Block_Get_Prev_Size(block);
 }
 
 
