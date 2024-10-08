@@ -84,25 +84,29 @@ static word_t *heap_start = NULL;
 
 // Returns whether the pointer is in the heap.
 // May be useful for debugging.
-static bool in_heap(const void* p)
+static bool
+in_heap(const void *p)
 {
     return p <= mem_heap_hi() && p >= mem_heap_lo();
 }
 
 // Max of two integers.
-static inline size_t max_i(const size_t a, const size_t b)
+static inline size_t
+max_i(const size_t a, const size_t b)
 {
     return a > b ? a : b;
 }
 
 // Rounds up to the nearest multiple of ALIGNMENT.
-static inline size_t align(const size_t x)
+static inline size_t
+align(const size_t x)
 {
     return ALIGNMENT * ((x+ALIGNMENT-1)/ALIGNMENT);
 }
 
 // Make tag from metadata.
-static inline word_t Tag_Pack(const size_t size, const bool alloc, const bool prev_alloc)
+static inline word_t
+Tag_Pack(const size_t size, const bool alloc, const bool prev_alloc)
 {
     // TODO: footers only need to store size with with the footer optimization now
     // check the size can fit in the number of bits we have available...
@@ -112,13 +116,15 @@ static inline word_t Tag_Pack(const size_t size, const bool alloc, const bool pr
 }
 
 // Get allocation status of block from a tag.
-static inline bool Tag_Get_Alloc(const word_t word)
+static inline bool
+Tag_Get_Alloc(const word_t word)
 {
     return (word >> 1) & 1;
 }
 
 // Get size of block from a tag.
-static inline size_t Tag_Get_Size(const word_t word)
+static inline size_t
+Tag_Get_Size(const word_t word)
 {
     const word_t size = word >> 2;
     dbg_assert(size % 2 == 0);
@@ -126,25 +132,29 @@ static inline size_t Tag_Get_Size(const word_t word)
 }
 
 // Get previous block allocation status from a tag.
-static inline bool Tag_Get_Prev_Alloc(const word_t word)
+static inline bool
+Tag_Get_Prev_Alloc(const word_t word)
 {
     return word & 1;
 }
 
 // Get previous block from the block.
-static inline bool Block_Get_Prev_Alloc(const word_t *block)
+static inline bool
+Block_Get_Prev_Alloc(const word_t *block)
 {
     return Tag_Get_Prev_Alloc(block[0]);
 }
 
 // Get size of block, `block` is a pointer to start of the block.
-static inline size_t Block_Get_Size(const word_t *block)
+static inline size_t
+Block_Get_Size(const word_t *block)
 {
     return Tag_Get_Size(block[0]);
 }
 
 // Get the size of the block before the given block in the heap.
-static inline size_t Block_Get_Prev_Size(const word_t *block)
+static inline size_t
+Block_Get_Prev_Size(const word_t *block)
 {
     // NOTE: caller should make sure previous block has a footer, i.e. is a
     // free block before calling this function.
@@ -154,37 +164,43 @@ static inline size_t Block_Get_Prev_Size(const word_t *block)
 }
 
 // Get allocation status of block, block is a pointer to start of the block.
-static inline bool Block_Get_Alloc(const word_t *block)
+static inline bool
+Block_Get_Alloc(const word_t *block)
 {
     return Tag_Get_Alloc(block[0]);
 }
 
 // Get free block in the free list, before block`.
-static inline word_t *Block_Get_Prev_Free(const word_t *block)
+static inline word_t *
+Block_Get_Prev_Free(const word_t *block)
 {
     return (word_t *)block[1];
 }
 
 // Get free block in the free list, after block.
-static inline word_t *Block_Get_Next_Free(const word_t *block)
+static inline word_t *
+Block_Get_Next_Free(const word_t *block)
 {
     return (word_t *)block[2];
 }
 
 // Set the prev pointer of the free block.
-static inline void Block_Set_Prev_Free(word_t *block, const word_t *prev)
+static inline void
+Block_Set_Prev_Free(word_t *block, const word_t *prev)
 {
     block[1] = (word_t)prev;
 }
 
 // Set the next pointer of the free block.
-static inline void Block_Set_Next_Free(word_t *block, const word_t *next)
+static inline void
+Block_Set_Next_Free(word_t *block, const word_t *next)
 {
     block[2] = (word_t)next;
 }
 
 // Get the block before the given block in the heap.
-static inline word_t *Block_Get_Prev_Adj(word_t *block)
+static inline word_t *
+Block_Get_Prev_Adj(word_t *block)
 {
     // NOTE: caller should make sure previous block has a footer, i.e. is a
     // free block before calling this function.
@@ -193,7 +209,8 @@ static inline word_t *Block_Get_Prev_Adj(word_t *block)
 }
 
 // Get the block right after the given block in the heap.
-static inline word_t *Block_Get_Next_Adj(word_t *block)
+static inline word_t *
+Block_Get_Next_Adj(word_t *block)
 {
     return block + Block_Get_Size(block);
 }
@@ -201,7 +218,8 @@ static inline word_t *Block_Get_Next_Adj(word_t *block)
 // This function unlinks the given block from the free list, it assumes that
 // the block exists in the free list, and that its allocation status is set to
 // false.
-static void Block_Unlink_Free_List(const word_t *block)
+static void
+Block_Unlink_Free_List(const word_t *block)
 {
     dbg_assert(free_list_head != NULL);
 
@@ -226,7 +244,8 @@ static void Block_Unlink_Free_List(const word_t *block)
 // NOTE: Normally, we never want to call this directly, only call it
 // through Block_Coalesce(...), unless we know that the prev and next
 // blocks are not free, for example during initialization of the heap.
-static void Block_Prepend_Free_List(word_t *block)
+static void
+Block_Prepend_Free_List(word_t *block)
 {
     Block_Set_Prev_Free(block, NULL);
     Block_Set_Next_Free(block, free_list_head);
@@ -242,7 +261,8 @@ static void Block_Prepend_Free_List(word_t *block)
 // TODO: can this me merged with Block_Coalesce(...)
 // TODO: can this be eliminated with functions that can set header and footer
 // of blocks?
-static word_t *Block_Inform_Next(word_t *prev)
+static word_t *
+Block_Inform_Next(word_t *prev)
 {
     word_t *next = Block_Get_Next_Adj(prev);
     const size_t size = Block_Get_Size(next);
@@ -257,7 +277,8 @@ static word_t *Block_Inform_Next(word_t *prev)
 }
 
 // Coalesce the block that is newly marked as free and add it to the free list.
-static word_t *Block_Coalesce(word_t *block)
+static word_t *
+Block_Coalesce(word_t *block)
 {
     size_t size = Block_Get_Size(block);
 
@@ -287,7 +308,8 @@ static word_t *Block_Coalesce(word_t *block)
 }
 
 // marks the block as free, coalesces and adds to the free list.
-static inline word_t *Block_Free(word_t *block, const size_t size, const bool prev_alloc)
+static inline word_t *
+Block_Free(word_t *block, const size_t size, const bool prev_alloc)
 {
     const word_t tag = Tag_Pack(size, false, prev_alloc);
     block[0] = tag;
@@ -301,7 +323,8 @@ static inline word_t *Block_Free(word_t *block, const size_t size, const bool pr
 // Function assumes that block_size is the size of the block and allocates
 // alloc_size number of words.
 // Also spawns new free block if space is available.
-static word_t *Block_Alloc(word_t *block, const size_t block_size, const size_t alloc_size)
+static word_t *
+Block_Alloc(word_t *block, const size_t block_size, const size_t alloc_size)
 {
     const bool prev_alloc = Block_Get_Prev_Alloc(block);
 
@@ -319,7 +342,8 @@ static word_t *Block_Alloc(word_t *block, const size_t block_size, const size_t 
 
 // Raise the heap by size number of words and return the new free block it
 // created, the block is initialized and coalesced.
-static word_t *Heap_Grow(size_t size)
+static word_t *
+Heap_Grow(size_t size)
 {
     dbg_assert(size % 2 == 0);
 
@@ -340,7 +364,8 @@ static word_t *Heap_Grow(size_t size)
 }
 
 // Initialize: returns false on error, true on success.
-bool mm_init(void)
+bool
+mm_init(void)
 {
     dbg_assert(MIN_BLOCK_SIZE % ALIGNMENT == 0);
     dbg_assert(sizeof(void *) == WORD_SIZE);
@@ -365,7 +390,8 @@ bool mm_init(void)
 }
 
 // malloc
-void *malloc(const size_t size)
+void *
+malloc(const size_t size)
 {
     mm_checkheap(__LINE__);
 
@@ -431,7 +457,8 @@ void *malloc(const size_t size)
 }
 
 // free
-void free(void *ptr)
+void
+free(void *ptr)
 {
     mm_checkheap(__LINE__);
 
@@ -447,7 +474,8 @@ void free(void *ptr)
 }
 
 // realloc
-void *realloc(void *ptr, const size_t size)
+void *
+realloc(void *ptr, const size_t size)
 {
     mm_checkheap(__LINE__);
 
@@ -501,9 +529,10 @@ void *realloc(void *ptr, const size_t size)
 
 // calloc: This function is not tested by mdriver, and has been implemented for
 // you.
-void* calloc(size_t nmemb, size_t size)
+void *
+calloc(size_t nmemb, size_t size)
 {
-    void* ptr;
+    void *ptr;
     size *= nmemb;
     ptr = malloc(size);
     if (ptr) {
@@ -514,7 +543,8 @@ void* calloc(size_t nmemb, size_t size)
 
 // Returns whether the pointer is aligned.
 // May be useful for debugging.
-static bool aligned(const void* p)
+static bool
+aligned(const void *p)
 {
     size_t ip = (size_t) p;
     return align(ip) == ip;
@@ -522,7 +552,8 @@ static bool aligned(const void* p)
 
 #ifdef DEBUG // Block_Print(...)
 // Pretty prints a block, used by.
-static void Block_Print(word_t *block)
+static void
+Block_Print(word_t *block)
 {
     if (!block) {
         const char *fmt = "  %18s" "  %18s" "  %18s" "  %12s" "  %12s" "\n";
@@ -546,7 +577,8 @@ static void Block_Print(word_t *block)
 // Pretty prints the entire heap.
 // I use this function to print the heap in gdb using
 // `call Heap_Print()`.
-static void Heap_Print(void)
+static void
+Heap_Print(void)
 {
     if (!heap_start) {
         dbg_printf("The heap is uninitialized...\n");
@@ -581,7 +613,8 @@ static void Heap_Print(void)
 // Pretty prints the free list.
 // I use this function to print the free block list in gdb using
 // `call Free_List_Print()`.
-static void Free_List_Print(void)
+static void
+Free_List_Print(void)
 {
     word_t *block = free_list_head;
 
@@ -600,7 +633,8 @@ static void Free_List_Print(void)
 #endif // Free_List_Print(...)
 
 // mm_checkheap
-bool mm_checkheap(int lineno)
+bool
+mm_checkheap(int lineno)
 {
 
     bool ret = true;
