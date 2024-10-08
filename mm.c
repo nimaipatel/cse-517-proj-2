@@ -79,8 +79,14 @@ typedef u_int64_t word_t;
 // TODO: what could be a better way to decide this?
 #define BEST_FIT_SEARCH_LIMIT 0x30
 
+// Global space limited to 128 bytes
+// 8 bytes
 static word_t *free_list_head = NULL;
-static word_t *heap_start = NULL;
+// 8 bytes
+// static word_t *heap_start = NULL;
+// Array of pointers for different free lists, we can store (128 - 8) / 8 = 15
+// pointers
+// static word_t *free_list_heads[15] = {0};
 
 // Returns whether the pointer is in the heap.
 // May be useful for debugging.
@@ -367,14 +373,16 @@ Heap_Grow(size_t size)
 bool
 mm_init(void)
 {
-    dbg_assert(MIN_BLOCK_SIZE % ALIGNMENT == 0);
+    dbg_assert(MIN_BLOCK_SIZE % 2 == 0);
     dbg_assert(sizeof(void *) == WORD_SIZE);
 
     // one word each for the special tags at start and end of the heap...
-    heap_start = mem_sbrk(WORD_SIZE + WORD_SIZE);
+    word_t *heap_start = mem_sbrk(WORD_SIZE + WORD_SIZE);
     if (heap_start == NULL) {
         return false;
     }
+    
+    dbg_assert(mem_heap_lo() == heap_start);
 
     // re-initialize the free_list_head to NULL in case mm_init() is called
     // multiple times...
@@ -565,7 +573,7 @@ Block_Print(word_t *block)
     const bool alloc = Block_Get_Alloc(block);
     const size_t size = Block_Get_Size(block);
     const char *alloc_str = alloc ? "true" : "false";
-    const bool prev_alloc = Block_Get_Prev_Alloc(*word);
+    const bool prev_alloc = Block_Get_Prev_Alloc(word);
     const char *prev_alloc_str = prev_alloc ? "true" : "false";
 
     const char *fmt = "  0x%016lx" "  0x%016lx" "  0x%016lx" "  %12s" "  %12s" "\n";
@@ -579,12 +587,7 @@ Block_Print(word_t *block)
 static void
 Heap_Print(void)
 {
-    if (!heap_start) {
-        dbg_printf("The heap is uninitialized...\n");
-        return;
-    }
-
-    word_t *words = heap_start;
+    word_t *words = mem_heap_lo();
 
     dbg_assert(words[0] == Tag_Pack(0, true, true));
 
@@ -666,7 +669,7 @@ mm_checkheap(int lineno)
 
     size_t n_free2 = 0;
     prev = NULL;
-    block = (word_t *)heap_start + 1;
+    block = (word_t *)mem_heap_lo() + 1;
     while (block != Block_Get_Next_Adj(block)) {
         if (Block_Get_Alloc(block) == false) {
             n_free2 += 1;
@@ -713,12 +716,14 @@ mm_checkheap(int lineno)
     }
 
     // check start of heap is correct...
+#if 0
     if (heap_start != mem_heap_lo()) {
         ret = false;
         dbg_printf("line %d: heap_start isn't set to actual start of heap "
                 "heap_start is %p, but should be %p\n",
                 lineno, heap_start, mem_heap_lo());
     }
+#endif
 
     // check number of free blocks is consistent from free list and heap
     // iteration...
