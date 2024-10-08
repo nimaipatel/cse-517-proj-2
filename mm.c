@@ -551,7 +551,7 @@ aligned(const void *p)
 }
 
 #ifdef DEBUG // Block_Print(...)
-// Pretty prints a block, used by.
+// Pretty prints a block, used by other debugging related functions.
 static void
 Block_Print(word_t *block)
 {
@@ -575,8 +575,7 @@ Block_Print(word_t *block)
 
 #ifdef DEBUG // Heap_Print(...)
 // Pretty prints the entire heap.
-// I use this function to print the heap in gdb using
-// `call Heap_Print()`.
+// I use this function to print the heap in gdb using `call Heap_Print()`.
 static void
 Heap_Print(void)
 {
@@ -611,8 +610,8 @@ Heap_Print(void)
 
 #ifdef DEBUG // Free_List_Print(...)
 // Pretty prints the free list.
-// I use this function to print the free block list in gdb using
-// `call Free_List_Print()`.
+// I use this function to print the free block list in gdb using `call
+// Free_List_Print()`.
 static void
 Free_List_Print(void)
 {
