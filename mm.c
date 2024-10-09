@@ -464,7 +464,16 @@ mm_init(void)
 
     word_t *words = heap_start;
 
-    // special boundary tags...
+    // special boundary tags at ends of the heap...
+    //
+    // size is 0, so Block_Get_Next_Adj and Block_Get_Prev_Adj of their
+    // neighbours yield themselves...
+    //
+    // alloc is set to true so they don't get coalesced...
+    //
+    // prev_alloc and prev_min are DON'T CARE at time of initialization since
+    // these bits don't make sense at beginning; when first block is allocated,
+    // they will be set to correct values...
     words[0] = Tag_Pack(0, true, true, false);
     words[1] = Tag_Pack(0, true, true, false);
 
