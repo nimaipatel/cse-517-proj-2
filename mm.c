@@ -730,7 +730,7 @@ mm_checkheap(int lineno)
 
     bool ret = true;
 
-#ifdef LOL
+#ifdef DEBUG
  
     // TODO: check blocks are in correct bins according to their sizes...
     // check that all blocks in free list are free...
