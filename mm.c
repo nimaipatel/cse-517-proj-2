@@ -93,17 +93,14 @@ in_heap(const void *p)
     return mem_heap_lo() <= p && p <= mem_heap_hi();
 }
 
-// TODO: rename this to something sensible...
-// Max of two integers.
 static inline size_t
-max_i(const size_t a, const size_t b)
+max_size_t(const size_t a, const size_t b)
 {
     return a > b ? a : b;
 }
 
-// Min of two integers.
 static inline size_t
-min_i(const size_t a, const size_t b)
+min_size_t(const size_t a, const size_t b)
 {
     return a < b ? a : b;
 }
@@ -121,7 +118,7 @@ align(const size_t x)
 static inline size_t
 Aligned_Word_Size(const size_t size_bytes)
 {
-    return max_i(align(size_bytes + WORD_SIZE) / WORD_SIZE, MIN_BLOCK_SIZE);
+    return max_size_t(align(size_bytes + WORD_SIZE) / WORD_SIZE, MIN_BLOCK_SIZE);
 }
 
 // Takes block_size and returns hash that can be used to index free list table.
@@ -134,7 +131,7 @@ Hash(size_t block_size)
 
     // index             0,     1,     2,     3, ...,
     // block size    4+2*0, 4+2*1, 4+2*2, 4+2*3, ...,
-    return min_i((block_size - MIN_BLOCK_SIZE) / 2, FREE_TABLE_SIZE - 1);
+    return min_size_t((block_size - MIN_BLOCK_SIZE) / 2, FREE_TABLE_SIZE - 1);
 }
 
 // Make tag from metadata.
