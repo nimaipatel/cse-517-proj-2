@@ -316,8 +316,8 @@ Block_Prepend_Free_List(word_t *block)
 {
     // TODO: refactor this into a function...
     const size_t block_size = Block_Get_Size(block);
-    const size_t hash = Size_Get_Bin_Index(block_size);
-    word_t **head = &free_table[hash];
+    const size_t bin_index = Size_Get_Bin_Index(block_size);
+    word_t **head = &free_table[bin_index];
 
     if (Block_Get_Size(block) != MIN_BLOCK_SIZE) {
         Block_Set_Prev_Free(block, NULL);
@@ -491,13 +491,13 @@ malloc(const size_t size)
 
     // start with list that stores smallest sized blocks that can at least
     // store this block...
-    size_t hash = Size_Get_Bin_Index(aligned_size);
+    size_t bin_index = Size_Get_Bin_Index(aligned_size);
     word_t *block = NULL;
 
     // find first list that is not empty...
-    while (block == NULL && hash < FREE_TABLE_SIZE) {
-        block = free_table[hash];
-        hash += 1;
+    while (block == NULL && bin_index < FREE_TABLE_SIZE) {
+        block = free_table[bin_index];
+        bin_index += 1;
     }
 
     // find first fit in the selected free list...
