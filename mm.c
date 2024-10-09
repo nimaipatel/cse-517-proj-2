@@ -73,7 +73,7 @@ typedef u_int64_t word_t;
 
 // The smallest free block will at least store a header, footer, two pointers
 // and two words each of which are one word long...
-#define MIN_BLOCK_SIZE (0x04)
+#define MIN_BLOCK_SIZE 0x4
 
 // Decided this by trying different values
 // TODO: what could be a better way to decide this?
@@ -215,31 +215,35 @@ Block_Get_Alloc(const word_t *block)
 }
 
 // Get free block in the free list, before block`.
+// NOTE: user should make sure that block size is not MIN_BLOCK_SIZE before
+// calling this function.
 static inline word_t *
 Block_Get_Prev_Free(const word_t *block)
 {
-    return (word_t *)block[1];
+    // dbg_assert(Block_Get_Size(block) != MIN_BLOCK_SIZE);
+
+    return (word_t *)block[2];
 }
 
 // Get free block in the free list, after block.
 static inline word_t *
 Block_Get_Next_Free(const word_t *block)
 {
-    return (word_t *)block[2];
+    return (word_t *)block[1];
 }
 
 // Set the prev pointer of the free block.
 static inline void
 Block_Set_Prev_Free(word_t *block, const word_t *prev)
 {
-    block[1] = (word_t)prev;
+    block[2] = (word_t)prev;
 }
 
 // Set the next pointer of the free block.
 static inline void
 Block_Set_Next_Free(word_t *block, const word_t *next)
 {
-    block[2] = (word_t)next;
+    block[1] = (word_t)next;
 }
 
 // Get the block before the given block in the heap.
