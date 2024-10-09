@@ -73,14 +73,17 @@ typedef u_int64_t word_t;
 
 // The smallest free block will at least store a header, footer, two pointers
 // and two words each of which are one word long...
-#define MIN_BLOCK_SIZE 0x4
+#define MIN_BLOCK_SIZE 0x2
 
 // Decided this by trying different values
 // TODO: what could be a better way to decide this?
-#define BEST_FIT_SEARCH_LIMIT 0x30
+#define BEST_FIT_SEARCH_LIMIT 0x10
 
 #define FREE_TABLE_SIZE 0x10
 static word_t *free_table[FREE_TABLE_SIZE] = {0};
+
+static void Free_List_Print(void);
+static void Heap_Print(void);
 
 // Returns whether the pointer is in the heap.
 // May be useful for debugging.
@@ -196,17 +199,6 @@ Block_Get_Size(const word_t *block)
     return Tag_Get_Size(block[0]);
 }
 
-// Get the size of the block before the given block in the heap.
-static inline size_t
-Block_Get_Prev_Size(const word_t *block)
-{
-    // NOTE: caller should make sure previous block has a footer, i.e. is a
-    // free block before calling this function.
-    dbg_assert(Block_Get_Prev_Alloc(block) == false);
-
-    return Tag_Get_Size(block[-1]);
-}
-
 // Get allocation status of block, block is a pointer to start of the block.
 static inline bool
 Block_Get_Alloc(const word_t *block)
@@ -247,13 +239,13 @@ Block_Set_Next_Free(word_t *block, const word_t *next)
 }
 
 // Get the block before the given block in the heap.
+// NOTE: caller should make sure previous block has a footer, i.e. is a
+// free block before calling this function.
 static inline word_t *
 Block_Get_Prev_Adj(word_t *block)
 {
-    // NOTE: caller should make sure previous block has a footer, i.e. is a
-    // free block before calling this function.
-
-    return block - Block_Get_Prev_Size(block);
+    const size_t prev_size = Block_Get_Prev_Min(block) ? MIN_BLOCK_SIZE : Tag_Get_Size(block[-1]);
+    return block - prev_size;
 }
 
 // Get the block right after the given block in the heap.
@@ -272,11 +264,38 @@ Block_Unlink_Free_List(const word_t *block)
     const size_t block_size = Block_Get_Size(block);
     const size_t hash = Hash(block_size);
     word_t **head = &free_table[hash];
-    dbg_assert(*head != NULL);
+    if(*head == NULL) {
+        dbg_printf("\n");
+        dbg_printf("block = %p\n", block);
+        dbg_printf("size = %ld\n", block_size);
+        dbg_printf("hash = %ld\n", hash);
+        Free_List_Print();
+        Heap_Print();
+        dbg_assert(false);
+    };
 
     // TODO: add an assert to check that block exists in the freelist
 
-    word_t *prev = Block_Get_Prev_Free(block);
+    word_t *prev = NULL;
+    if (block_size == MIN_BLOCK_SIZE) {
+        // block size is MIN_BLOCK_SIZE, so it doesn't hold prev pointer, we
+        // will have to traverse the entire list to get the previous block...
+        dbg_assert(hash == 0);
+
+        word_t *curr = *head;
+        while (curr && curr != block) {
+            prev = curr;
+            curr = Block_Get_Next_Free(curr);
+        }
+        
+        dbg_assert(curr != NULL);
+
+    } else {
+        // block size > MIN_BLOCK_SIZE, so we can get the stored prev
+        // pointer...
+        prev = Block_Get_Prev_Free(block);
+    }
+
     word_t *next = Block_Get_Next_Free(block);
 
     if (prev) {
@@ -286,7 +305,7 @@ Block_Unlink_Free_List(const word_t *block)
         *head = next;
     }
 
-    if (next) {
+    if (next && Block_Get_Size(next) != MIN_BLOCK_SIZE) {
         Block_Set_Prev_Free(next, prev);
     }
 }
@@ -298,14 +317,17 @@ Block_Unlink_Free_List(const word_t *block)
 static void
 Block_Prepend_Free_List(word_t *block)
 {
+    // TODO: refactor this into a function...
     const size_t block_size = Block_Get_Size(block);
     const size_t hash = Hash(block_size);
     word_t **head = &free_table[hash];
 
-    Block_Set_Prev_Free(block, NULL);
+    if (Block_Get_Size(block) != MIN_BLOCK_SIZE) {
+        Block_Set_Prev_Free(block, NULL);
+    }
     Block_Set_Next_Free(block, *head);
 
-    if (*head) {
+    if (*head && Block_Get_Size(*head) != MIN_BLOCK_SIZE) {
         Block_Set_Prev_Free(*head, block);
     }
 
@@ -646,12 +668,12 @@ Block_Print(word_t *block)
 }
 #endif // Block_Print(...)
 
-#ifdef DEBUG // Heap_Print(...)
 // Pretty prints the entire heap.
 // I use this function to print the heap in gdb using `call Heap_Print()`.
 static void
 Heap_Print(void)
 {
+#ifdef DEBUG // Heap_Print(...)
     word_t *words = mem_heap_lo();
 
     dbg_assert(words[0] == Tag_Pack(0, true, true, false));
@@ -672,17 +694,16 @@ Heap_Print(void)
     Block_Print(iter);
 
     dbg_printf("heap end...\n\n");
-
-}
 #endif // Heap_Print(...)
+}
 
-#ifdef DEBUG // Free_List_Print(...)
 // Pretty prints the free list.
 // I use this function to print the free block list in gdb using `call
 // Free_List_Print()`.
 static void
 Free_List_Print(void)
 {
+#ifdef DEBUG // Free_List_Print(...)
     dbg_printf("\nFree lists start...\n");
     Block_Print(NULL);
     for (int i = 0; i < FREE_TABLE_SIZE; i += 1) {
@@ -697,8 +718,8 @@ Free_List_Print(void)
 
     }
     dbg_printf("Free lists end...\n\n");
-}
 #endif // Free_List_Print(...)
+}
 
 // mm_checkheap
 bool
@@ -707,11 +728,12 @@ mm_checkheap(int lineno)
 
     bool ret = true;
 
-#ifdef DEBUG
+#ifdef LOL
  
+    // TODO: check blocks are in correct bins according to their sizes...
     // check that all blocks in free list are free...
     size_t n_free = 0;
-    for (int i = 0; i < FREE_TABLE_SIZE; i += 1) {
+    for (size_t i = 0; i < FREE_TABLE_SIZE; i += 1) {
         word_t *prev = NULL;
         word_t *block = free_table[i];
         while (block) {
@@ -724,10 +746,15 @@ mm_checkheap(int lineno)
             }
 
             // check prev and next pointers are consistent...
-            if (Block_Get_Prev_Free(block) != prev) {
+            if (Block_Get_Size(block) > MIN_BLOCK_SIZE && Block_Get_Prev_Free(block) != prev) {
                 ret = false;
                 dbg_printf("line %d: inconsistent prev pointer for block at %p\n",
                         lineno, block);
+            }
+
+            if (Hash(Block_Get_Size(block)) != i) {
+                ret = false;
+                dbg_printf("line %d: %p has size %ld but is in bin %ld\n", lineno, block, Block_Get_Size(block), i);
             }
 
             prev = block;
