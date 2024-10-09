@@ -90,7 +90,7 @@ static void Heap_Print(void);
 static bool
 in_heap(const void *p)
 {
-    return p <= mem_heap_hi() && p >= mem_heap_lo();
+    return mem_heap_lo() <= p && p <= mem_heap_hi();
 }
 
 // TODO: rename this to something sensible...
