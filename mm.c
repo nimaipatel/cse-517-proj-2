@@ -498,7 +498,7 @@ malloc(const size_t size)
     // start with list that stores smallest sized blocks that can at least
     // store this block...
     size_t bin_index = Size_Get_Bin_Index(aligned_size);
-    word_t *block = NULL;
+    word_t *block = free_table[bin_index];
 
     // find first list that is not empty...
     while (block == NULL && bin_index < FREE_TABLE_SIZE) {
@@ -517,7 +517,9 @@ malloc(const size_t size)
     word_t *best_block = block;
 
     // keep searching for a better fit in the same free list up to a limit...
-    while (block && counter < BEST_FIT_SEARCH_LIMIT) {
+    while (block &&
+            Block_Get_Size(block) != aligned_size &&
+            counter < BEST_FIT_SEARCH_LIMIT) {
         dbg_assert(Block_Get_Alloc(block) == false);
 
         counter += 1;
