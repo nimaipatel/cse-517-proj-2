@@ -331,7 +331,7 @@ Block_Prepend_Free_List(word_t *block)
     *head = block;
 }
 
-// Updates the prev_alloc bit for the block after prev.
+// Refreshes next blocks knowledge of previous block's state.
 // TODO: can this me merged with Block_Coalesce(...)
 // TODO: can this be eliminated with functions that can set header and footer
 // of blocks?
@@ -368,12 +368,11 @@ Block_Coalesce(word_t *block)
     bool prev_alloc = Block_Get_Prev_Alloc(block);
     bool prev_min = Block_Get_Prev_Min(block);
     if (!prev_alloc) {
-        word_t *prev = Block_Get_Prev_Adj(block);
-        prev_alloc = Block_Get_Prev_Alloc(prev);
-        prev_min = Block_Get_Prev_Min(prev);
-        size += Block_Get_Size(prev);
-        Block_Unlink_Free_List(prev);
-        block = prev;
+        block = Block_Get_Prev_Adj(block);
+        prev_alloc = Block_Get_Prev_Alloc(block);
+        prev_min = Block_Get_Prev_Min(block);
+        size += Block_Get_Size(block);
+        Block_Unlink_Free_List(block);
     }
 
     const word_t tag = Tag_Pack(size, false, prev_alloc, prev_min);
