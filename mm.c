@@ -507,17 +507,10 @@ malloc(const size_t size)
     }
 
     // find first fit in the selected free list...
-    while (block) {
+    while (block && Block_Get_Size(block) < aligned_size) {
         dbg_assert(Block_Get_Alloc(block) == false);
 
         counter += 1;
-
-        const size_t curr_size = Block_Get_Size(block);
-
-        if (curr_size >= aligned_size) {
-            break;
-        }
-
         block = Block_Get_Next_Free(block);
     }
 
