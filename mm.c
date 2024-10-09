@@ -452,6 +452,8 @@ mm_init(void)
     dbg_assert(MIN_BLOCK_SIZE % 2 == 0);
     dbg_assert(sizeof(void *) == WORD_SIZE);
     dbg_assert(sizeof(size_t) == WORD_SIZE);
+    // free_table is the only static memory we are using...
+    dbg_assert(sizeof(free_table) <= 128);
 
     // one word each for the special tags at start and end of the heap...
     word_t *heap_start = mem_sbrk(WORD_SIZE + WORD_SIZE);
