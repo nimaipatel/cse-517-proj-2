@@ -269,15 +269,7 @@ Block_Unlink_Free_List(const word_t *block)
     const size_t block_size = Block_Get_Size(block);
     const size_t bin_index = Size_Get_Bin_Index(block_size);
     word_t **head = &free_table[bin_index];
-    if(*head == NULL) {
-        dbg_printf("\n");
-        dbg_printf("block = %p\n", block);
-        dbg_printf("size = %ld\n", block_size);
-        dbg_printf("bin_index = %ld\n", bin_index);
-        Free_List_Print();
-        Heap_Print();
-        dbg_assert(false);
-    };
+    dbg_assert(*head != NULL);
 
     // TODO: add an assert to check that block exists in the freelist
 
