@@ -335,7 +335,7 @@ Block_Prepend_Free_List(word_t *block)
 // TODO: can this me merged with Block_Coalesce(...)
 // TODO: can this be eliminated with functions that can set header and footer
 // of blocks?
-static word_t *
+static void
 Block_Inform_Next(word_t *prev)
 {
     word_t *next = Block_Get_Next_Adj(prev);
@@ -349,7 +349,6 @@ Block_Inform_Next(word_t *prev)
     if (!alloc) {
         next[size - 1] = tag;
     }
-    return next;
 }
 
 // Coalesce the block that is newly marked as free and add it to the free list.
@@ -386,7 +385,7 @@ Block_Coalesce(word_t *block)
     return block;
 }
 
-// marks the block as free, coalesces and adds to the free list.
+// Marks the block as free, coalesces and adds to the free list.
 static inline word_t *
 Block_Free(word_t *block, const size_t size, const bool prev_alloc, const bool prev_min)
 {
@@ -400,7 +399,7 @@ Block_Free(word_t *block, const size_t size, const bool prev_alloc, const bool p
 // Function assumes that block_size is the size of the block and allocates
 // alloc_size number of words.
 // Also spawns new free block if space is available.
-static word_t *
+static void
 Block_Alloc(word_t *block, const size_t block_size, const size_t alloc_size)
 {
     const bool prev_alloc = Block_Get_Prev_Alloc(block);
@@ -409,12 +408,12 @@ Block_Alloc(word_t *block, const size_t block_size, const size_t alloc_size)
     if (block_size - alloc_size < MIN_BLOCK_SIZE) {
         const word_t tag = Tag_Pack(block_size, true, prev_alloc, prev_min);
         block[0] = tag;
-        return Block_Inform_Next(block);
+        Block_Inform_Next(block);
     } else {
         const word_t tag = Tag_Pack(alloc_size, true, prev_alloc, prev_min);
         block[0] = tag;
         word_t *next = Block_Get_Next_Adj(block);
-        return Block_Free(next, block_size - alloc_size, true, (alloc_size == MIN_BLOCK_SIZE));
+        Block_Free(next, block_size - alloc_size, true, (alloc_size == MIN_BLOCK_SIZE));
     }
 }
 
@@ -467,7 +466,6 @@ mm_init(void)
 
     // special boundary tags...
     words[0] = Tag_Pack(0, true, true, false);
-    // CONTEMPLATE: do you need to add block of min size to make this work?
     words[1] = Tag_Pack(0, true, true, false);
 
     return true;
