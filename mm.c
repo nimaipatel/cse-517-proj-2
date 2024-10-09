@@ -121,13 +121,15 @@ Aligned_Word_Size(const size_t size_bytes)
     return max_size_t(align(size_bytes + WORD_SIZE) / WORD_SIZE, MIN_BLOCK_SIZE);
 }
 
-// Takes block_size and returns hash that can be used to index free list table.
+// Takes block_size and returns index of the free list bin it should be or is
+// placed in.
 size_t
-Hash(size_t block_size)
+Size_Get_Bin_Index(size_t block_size)
 {
     dbg_assert(block_size % 2 == 0);
     dbg_assert(block_size >= MIN_BLOCK_SIZE);
-    // TODO: better algorithm for bin sizes...
+    // TODO: better algorithm for bin sizes, currently using linearly
+    // increasing block sizes...
 
     // index             0,     1,     2,     3, ...,
     // block size    4+2*0, 4+2*1, 4+2*2, 4+2*3, ...,
@@ -145,13 +147,6 @@ Tag_Pack(const size_t size, const bool alloc, const bool prev_alloc, const bool 
     return (size << 3 | (word_t)alloc << 2 | (word_t)prev_alloc << 1 | (word_t)prev_min);
 }
 
-// Get allocation status of block from a tag.
-static inline bool
-Tag_Get_Alloc(const word_t word)
-{
-    return (word >> 2) & 1;
-}
-
 // Get size of block from a tag.
 static inline size_t
 Tag_Get_Size(const word_t word)
@@ -159,6 +154,13 @@ Tag_Get_Size(const word_t word)
     const word_t size = word >> 3;
     dbg_assert(size % 2 == 0);
     return size;
+}
+
+// Get allocation status of block from a tag.
+static inline bool
+Tag_Get_Alloc(const word_t word)
+{
+    return (word >> 2) & 1;
 }
 
 // Get previous block allocation status from a tag.
@@ -172,24 +174,10 @@ Tag_Get_Prev_Alloc(const word_t word)
 static inline bool
 Tag_Get_Prev_Min(const word_t word)
 {
-    return word & 1;
+    return (word >> 0) & 1;
 }
 
-// Get previous block from the block.
-static inline bool
-Block_Get_Prev_Alloc(const word_t *block)
-{
-    return Tag_Get_Prev_Alloc(block[0]);
-}
-
-// Check if previous block is minimum sized block.
-static inline bool
-Block_Get_Prev_Min(const word_t *block)
-{
-    return Tag_Get_Prev_Min(block[0]);
-}
-
-// Get size of block, `block` is a pointer to start of the block.
+// Get size of block, block is a pointer to start of the block.
 static inline size_t
 Block_Get_Size(const word_t *block)
 {
@@ -203,13 +191,27 @@ Block_Get_Alloc(const word_t *block)
     return Tag_Get_Alloc(block[0]);
 }
 
-// Get free block in the free list, before block`.
-// NOTE: user should make sure that block size is not MIN_BLOCK_SIZE before
-// calling this function.
+// Get previous block allocation status from the block.
+static inline bool
+Block_Get_Prev_Alloc(const word_t *block)
+{
+    return Tag_Get_Prev_Alloc(block[0]);
+}
+
+// Check if previous block is minimum sized block.
+static inline bool
+Block_Get_Prev_Min(const word_t *block)
+{
+    return Tag_Get_Prev_Min(block[0]);
+}
+
+// Get free block in the free list, before block.
+// NOTE: caller should make sure that block size is not MIN_BLOCK_SIZE before
+// calling this function since those blocks don't store a prev pointer.
 static inline word_t *
 Block_Get_Prev_Free(const word_t *block)
 {
-    // dbg_assert(Block_Get_Size(block) != MIN_BLOCK_SIZE);
+    dbg_assert(Block_Get_Size(block) > MIN_BLOCK_SIZE);
 
     return (word_t *)block[2];
 }
@@ -222,9 +224,13 @@ Block_Get_Next_Free(const word_t *block)
 }
 
 // Set the prev pointer of the free block.
+// NOTE: caller should make sure that block size is not MIN_BLOCK_SIZE before
+// calling this function since those blocks don't store a prev pointer.
 static inline void
 Block_Set_Prev_Free(word_t *block, const word_t *prev)
 {
+    dbg_assert(Block_Get_Size(block) > MIN_BLOCK_SIZE);
+
     block[2] = (word_t)prev;
 }
 
@@ -241,6 +247,8 @@ Block_Set_Next_Free(word_t *block, const word_t *next)
 static inline word_t *
 Block_Get_Prev_Adj(word_t *block)
 {
+    dbg_assert(Block_Get_Prev_Alloc(block) == false);
+
     const size_t prev_size = Block_Get_Prev_Min(block) ? MIN_BLOCK_SIZE : Tag_Get_Size(block[-1]);
     return block - prev_size;
 }
@@ -259,13 +267,13 @@ static void
 Block_Unlink_Free_List(const word_t *block)
 {
     const size_t block_size = Block_Get_Size(block);
-    const size_t hash = Hash(block_size);
-    word_t **head = &free_table[hash];
+    const size_t bin_index = Size_Get_Bin_Index(block_size);
+    word_t **head = &free_table[bin_index];
     if(*head == NULL) {
         dbg_printf("\n");
         dbg_printf("block = %p\n", block);
         dbg_printf("size = %ld\n", block_size);
-        dbg_printf("hash = %ld\n", hash);
+        dbg_printf("bin_index = %ld\n", bin_index);
         Free_List_Print();
         Heap_Print();
         dbg_assert(false);
@@ -277,7 +285,7 @@ Block_Unlink_Free_List(const word_t *block)
     if (block_size == MIN_BLOCK_SIZE) {
         // block size is MIN_BLOCK_SIZE, so it doesn't hold prev pointer, we
         // will have to traverse the entire list to get the previous block...
-        dbg_assert(hash == 0);
+        dbg_assert(bin_index == 0);
 
         word_t *curr = *head;
         while (curr && curr != block) {
@@ -316,7 +324,7 @@ Block_Prepend_Free_List(word_t *block)
 {
     // TODO: refactor this into a function...
     const size_t block_size = Block_Get_Size(block);
-    const size_t hash = Hash(block_size);
+    const size_t hash = Size_Get_Bin_Index(block_size);
     word_t **head = &free_table[hash];
 
     if (Block_Get_Size(block) != MIN_BLOCK_SIZE) {
@@ -491,7 +499,7 @@ malloc(const size_t size)
 
     // start with list that stores smallest sized blocks that can at least
     // store this block...
-    size_t hash = Hash(aligned_size);
+    size_t hash = Size_Get_Bin_Index(aligned_size);
     word_t *block = NULL;
 
     // find first list that is not empty...
@@ -751,7 +759,7 @@ mm_checkheap(int lineno)
                         lineno, block);
             }
 
-            if (Hash(Block_Get_Size(block)) != i) {
+            if (Size_Get_Bin_Index(Block_Get_Size(block)) != i) {
                 ret = false;
                 dbg_printf("line %d: %p has size %ld but is in bin %ld\n", lineno, block, Block_Get_Size(block), i);
             }
