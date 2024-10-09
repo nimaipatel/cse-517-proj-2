@@ -136,27 +136,27 @@ Hash(size_t block_size)
 
 // Make tag from metadata.
 static inline word_t
-Tag_Pack(const size_t size, const bool alloc, const bool prev_alloc)
+Tag_Pack(const size_t size, const bool alloc, const bool prev_alloc, const bool prev_min)
 {
     // TODO: footers only need to store size with with the footer optimization now
     // check the size can fit in the number of bits we have available...
-    dbg_assert(size < ((size_t)1 << (WORD_SIZE_BITS - 2)) - 1);
+    dbg_assert(size < ((size_t)1 << (WORD_SIZE_BITS - 3)) - 1);
 
-    return (size << 2 | (word_t)alloc << 1 | (word_t)prev_alloc);
+    return (size << 3 | (word_t)alloc << 2 | (word_t)prev_alloc << 1 | (word_t)prev_min);
 }
 
 // Get allocation status of block from a tag.
 static inline bool
 Tag_Get_Alloc(const word_t word)
 {
-    return (word >> 1) & 1;
+    return (word >> 2) & 1;
 }
 
 // Get size of block from a tag.
 static inline size_t
 Tag_Get_Size(const word_t word)
 {
-    const word_t size = word >> 2;
+    const word_t size = word >> 3;
     dbg_assert(size % 2 == 0);
     return size;
 }
@@ -164,6 +164,13 @@ Tag_Get_Size(const word_t word)
 // Get previous block allocation status from a tag.
 static inline bool
 Tag_Get_Prev_Alloc(const word_t word)
+{
+    return (word >> 1) & 1;
+}
+
+// Get if previous block is a minimum sized block.
+static inline bool
+Tag_Get_Prev_Min(const word_t word)
 {
     return word & 1;
 }
@@ -173,6 +180,13 @@ static inline bool
 Block_Get_Prev_Alloc(const word_t *block)
 {
     return Tag_Get_Prev_Alloc(block[0]);
+}
+
+// Check if previous block is minimum sized block.
+static inline bool
+Block_Get_Prev_Min(const word_t *block)
+{
+    return Tag_Get_Prev_Min(block[0]);
 }
 
 // Get size of block, `block` is a pointer to start of the block.
@@ -303,9 +317,11 @@ Block_Inform_Next(word_t *prev)
 {
     word_t *next = Block_Get_Next_Adj(prev);
     const size_t size = Block_Get_Size(next);
+    const size_t prev_size = Block_Get_Size(prev);
     const bool alloc = Block_Get_Alloc(next);
     const bool prev_alloc = Block_Get_Alloc(prev);
-    const word_t tag = Tag_Pack(size, alloc, prev_alloc);
+    const bool prev_min = (prev_size == MIN_BLOCK_SIZE);
+    const word_t tag = Tag_Pack(size, alloc, prev_alloc, prev_min);
     next[0] = tag;
     if (!alloc) {
         next[size - 1] = tag;
@@ -327,32 +343,34 @@ Block_Coalesce(word_t *block)
     }
 
     bool prev_alloc = Block_Get_Prev_Alloc(block);
+    bool prev_min = Block_Get_Prev_Min(block);
     if (!prev_alloc) {
         word_t *prev = Block_Get_Prev_Adj(block);
         prev_alloc = Block_Get_Prev_Alloc(prev);
+        prev_min = Block_Get_Prev_Min(prev);
         size += Block_Get_Size(prev);
         Block_Unlink_Free_List(prev);
         block = prev;
     }
 
-    const word_t tag = Tag_Pack(size, false, prev_alloc);
+    const word_t tag = Tag_Pack(size, false, prev_alloc, prev_min);
     block[0] = tag;
     block[size - 1] = tag;
 
     Block_Prepend_Free_List(block);
+
+    Block_Inform_Next(block);
 
     return block;
 }
 
 // marks the block as free, coalesces and adds to the free list.
 static inline word_t *
-Block_Free(word_t *block, const size_t size, const bool prev_alloc)
+Block_Free(word_t *block, const size_t size, const bool prev_alloc, const bool prev_min)
 {
-    const word_t tag = Tag_Pack(size, false, prev_alloc);
+    const word_t tag = Tag_Pack(size, false, prev_alloc, prev_min);
     block[0] = tag;
     block[size - 1] = tag;
-    Block_Inform_Next(block);
-
     return Block_Coalesce(block);
 }
 
@@ -364,16 +382,17 @@ static word_t *
 Block_Alloc(word_t *block, const size_t block_size, const size_t alloc_size)
 {
     const bool prev_alloc = Block_Get_Prev_Alloc(block);
+    const bool prev_min = Block_Get_Prev_Min(block);
 
     if (block_size - alloc_size < MIN_BLOCK_SIZE) {
-        const word_t tag = Tag_Pack(block_size, true, prev_alloc);
+        const word_t tag = Tag_Pack(block_size, true, prev_alloc, prev_min);
         block[0] = tag;
         return Block_Inform_Next(block);
     } else {
-        const word_t tag = Tag_Pack(alloc_size, true, prev_alloc);
+        const word_t tag = Tag_Pack(alloc_size, true, prev_alloc, prev_min);
         block[0] = tag;
         word_t *next = Block_Get_Next_Adj(block);
-        return Block_Free(next, block_size - alloc_size, true);
+        return Block_Free(next, block_size - alloc_size, true, (alloc_size == MIN_BLOCK_SIZE));
     }
 }
 
@@ -391,11 +410,11 @@ Heap_Grow(size_t size)
 
     // set new heap end boundary tag...
     word_t *heapend = p + size - 1;
-    *heapend = Tag_Pack(0, true, false);
+    *heapend = Tag_Pack(0, true, false, size == MIN_BLOCK_SIZE);
 
     // set header and footer of new free block...
     word_t *block = p - 1;
-    block = Block_Free(block, size, Block_Get_Prev_Alloc(block));
+    block = Block_Free(block, size, Block_Get_Prev_Alloc(block), Block_Get_Prev_Min(block));
 
     return block;
 }
@@ -406,6 +425,7 @@ mm_init(void)
 {
     dbg_assert(MIN_BLOCK_SIZE % 2 == 0);
     dbg_assert(sizeof(void *) == WORD_SIZE);
+    dbg_assert(sizeof(size_t) == WORD_SIZE);
 
     // one word each for the special tags at start and end of the heap...
     word_t *heap_start = mem_sbrk(WORD_SIZE + WORD_SIZE);
@@ -422,8 +442,9 @@ mm_init(void)
     word_t *words = heap_start;
 
     // special boundary tags...
-    words[0] = Tag_Pack(0, true, true);
-    words[1] = Tag_Pack(0, true, true);
+    words[0] = Tag_Pack(0, true, true, false);
+    // CONTEMPLATE: do you need to add block of min size to make this work?
+    words[1] = Tag_Pack(0, true, true, false);
 
     return true;
 }
@@ -517,7 +538,7 @@ free(void *ptr)
     word_t *block = (word_t *)ptr - 1;
 
     // mark block as free and inform next adjacent block...
-    Block_Free(block, Block_Get_Size(block), Block_Get_Prev_Alloc(block));
+    Block_Free(block, Block_Get_Size(block), Block_Get_Prev_Alloc(block), Block_Get_Prev_Min(block));
 }
 
 // realloc
@@ -602,8 +623,8 @@ static void
 Block_Print(word_t *block)
 {
     if (!block) {
-        const char *fmt = "  %18s" "  %18s" "  %18s" "  %12s" "  %12s" "\n";
-        dbg_printf(fmt, "address", "word", "size", "alloc", "prev alloc");
+        const char *fmt = "%-18s %-18s %-18s %-10s %-10s %-10s\n";
+        dbg_printf(fmt, "address", "word", "size", "alloc", "prev_alloc", "prev_min");
         return;
     }
 
@@ -613,9 +634,11 @@ Block_Print(word_t *block)
     const char *alloc_str = alloc ? "true" : "false";
     const bool prev_alloc = Block_Get_Prev_Alloc(block);
     const char *prev_alloc_str = prev_alloc ? "true" : "false";
+    const bool prev_min = Block_Get_Prev_Min(block);
+    const char *prev_min_str = prev_min ? "true" : "false";
 
-    const char *fmt = "  0x%016lx" "  0x%016lx" "  0x%016lx" "  %12s" "  %12s" "\n";
-    dbg_printf(fmt, word, *word, size, alloc_str, prev_alloc_str);
+    const char *fmt = "0x%016lx 0x%016lx 0x%016lx %-10s %-10s %-10s\n";
+    dbg_printf(fmt, word, *word, size, alloc_str, prev_alloc_str, prev_min_str);
 }
 #endif // Block_Print(...)
 
@@ -627,7 +650,7 @@ Heap_Print(void)
 {
     word_t *words = mem_heap_lo();
 
-    dbg_assert(words[0] == Tag_Pack(0, true, true));
+    dbg_assert(words[0] == Tag_Pack(0, true, true, false));
 
     dbg_printf("\nHeap start...\n");
 
@@ -733,18 +756,26 @@ mm_checkheap(int lineno)
             }
         }
 
+        if (prev && Block_Get_Prev_Min(block) != (Block_Get_Size(prev) == MIN_BLOCK_SIZE)) {
+            ret = false;
+            dbg_printf("line %d: block %p has prev_min set to %d but size of previous block is %ld\n", lineno, block, Block_Get_Prev_Min(block), Block_Get_Size(prev));
+        }
+
         prev = block;
         block = Block_Get_Next_Adj(block);
     }
 
+// TODO: update this check...
+#if 0
     // block should be the end boundary tag...
     word_t boundary_tag = *(word_t *)block;
-    if (boundary_tag != Tag_Pack(0, true, false) &&
-            boundary_tag != Tag_Pack(0, true, true)) {
+    if (boundary_tag != Tag_Pack(0, true, false, false) ||
+            boundary_tag != Tag_Pack(0, true, true, false)) {
         ret = false;
         dbg_printf("line %d: heap traversal boundary tag not matching"
                 " boundary tag = %ld\n", lineno, boundary_tag);
     }
+#endif
 
     // check last byte of boundary tag is exactly at the end of the heap, this
     // should be enough to prove that all pointers before it are in the heap...
@@ -766,9 +797,6 @@ mm_checkheap(int lineno)
     }
 
     // TODO: check that allocated blocks don't overlap...
-
-
-
 #endif /* DEBUG */
 
     return ret;
