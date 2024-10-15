@@ -7,21 +7,36 @@
  * Name 2: Manay Lodha
  * PSU ID 2: mnl5238
  *
- * TODO: updat description...
- *
  * This is a malloc implementation that returns double word aligned blocks of
- * memory
+ * memory.
  *
- * All blocks store a header that is one word long. The first 62 bits (assuming
- * a word is 64 bits on the system) are used to store the size of the block in
- * words, and the next two bits are used to store the allocation status of the
- * *previous* block and the current block.
+ * All blocks store a header that is one word long.
  *
- * Free blocks store a footer at their last word, which is identical to the
- * header.
+ * 1. The lowest bit is used to store whether the previous block is of minimum
+ * size.
  *
- * Free blocks use the two words right after the header to store pointers to
- * the previous and next free blocks.
+ * 2. The bit to its left is used to store whether the previous block is
+ * allocated.
+ *
+ * 3. The bit to its left is used to store whether the block itself is
+ * allocated.
+ *
+ * 4. The remaining bits are used to store the size of the block in number of
+ * words.
+ *
+ * Free blocks store a pointer to the next free block in the word right after
+ * the header.
+ *
+ * If the free block is of size > MIN_BLOCK_SIZE then it stores a pointer to the
+ * previous free block in the word after that.
+ *
+ * If the free block is of size > MIN_BLOCK_SIZE then it stores a footer as
+ * well, which is identical to the header.
+ *
+ * We use segregated free lists. Refer to Size_Get_Bin_Index function for bin
+ * sizes. This is the ONLY global static memory that we use. FREE_TABLE_SIZE is
+ * set to 16, since each pointer is 8 bytes, the total global static memory used
+ * is 128 which is the maximum we can use as per the project requirement.
  *
  * We use a best fit search for finding free blocks in the free list. It
  * searches at most BEST_FIT_SEARCH_LIMIT number of blocks (unless a block
@@ -93,6 +108,13 @@ static bool
 in_heap(const void *p)
 {
     return mem_heap_lo() <= p && p <= mem_heap_hi();
+}
+
+// Get the printable string representation of a boolean.
+static inline const char *
+Bool_Str(const bool b)
+{
+    return b ? "true" : "false";
 }
 
 static inline size_t
@@ -273,8 +295,6 @@ Block_Unlink_Free_List(const word_t *block)
     word_t **head = &free_table[bin_index];
     dbg_assert(*head != NULL);
 
-    // TODO: add an assert to check that block exists in the freelist
-
     word_t *prev = NULL;
     if (block_size == MIN_BLOCK_SIZE) {
         // block size is MIN_BLOCK_SIZE, so it doesn't hold prev pointer, we
@@ -334,7 +354,7 @@ Block_Prepend_Free_List(word_t *block)
 }
 
 // Refreshes next blocks knowledge of previous block's state.
-// TODO: can this me merged with Block_Coalesce(...)
+// TODO: can this me merged with Block_Coalesce(...)?
 // TODO: can this be eliminated with functions that can set header and footer
 // of blocks?
 static void
@@ -659,14 +679,11 @@ Block_Print(word_t *block)
     word_t *word = block;
     const bool alloc = Block_Get_Alloc(block);
     const size_t size = Block_Get_Size(block);
-    const char *alloc_str = alloc ? "true" : "false";
     const bool prev_alloc = Block_Get_Prev_Alloc(block);
-    const char *prev_alloc_str = prev_alloc ? "true" : "false";
     const bool prev_min = Block_Get_Prev_Min(block);
-    const char *prev_min_str = prev_min ? "true" : "false";
 
     const char *fmt = "0x%016lx 0x%016lx 0x%016lx %-10s %-10s %-10s\n";
-    dbg_printf(fmt, word, *word, size, alloc_str, prev_alloc_str, prev_min_str);
+    dbg_printf(fmt, word, *word, size, Bool_Str(alloc), Bool_Str(prev_alloc), Bool_Str(prev_min));
 }
 #endif // Block_Print(...)
 
@@ -732,8 +749,6 @@ mm_checkheap(int lineno)
 
 #ifdef DEBUG
  
-    // TODO: check blocks are in correct bins according to their sizes...
-    // check that all blocks in free list are free...
     size_t n_free = 0;
     for (size_t i = 0; i < FREE_TABLE_SIZE; i += 1) {
         word_t *prev = NULL;
@@ -798,18 +813,6 @@ mm_checkheap(int lineno)
         block = Block_Get_Next_Adj(block);
     }
 
-// TODO: update this check...
-#if 0
-    // block should be the end boundary tag...
-    word_t boundary_tag = *(word_t *)block;
-    if (boundary_tag != Tag_Pack(0, true, false, false) ||
-            boundary_tag != Tag_Pack(0, true, true, false)) {
-        ret = false;
-        dbg_printf("line %d: heap traversal boundary tag not matching"
-                " boundary tag = %ld\n", lineno, boundary_tag);
-    }
-#endif
-
     // check last byte of boundary tag is exactly at the end of the heap, this
     // should be enough to prove that all pointers before it are in the heap...
     const void *last_byte = (char *)block + 7;
@@ -828,8 +831,6 @@ mm_checkheap(int lineno)
                 ", but while traversing heap, found %ld free blocks\n",
                 lineno, n_free, n_free2);
     }
-
-    // TODO: check that allocated blocks don't overlap...
 #endif /* DEBUG */
 
     return ret;
