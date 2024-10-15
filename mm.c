@@ -13,16 +13,16 @@
  * All blocks store a header that is one word long.
  *
  * 1. The lowest bit is used to store whether the previous block is of minimum
- * size.
+ *    size.
  *
  * 2. The bit to its left is used to store whether the previous block is
- * allocated.
+ *    allocated.
  *
  * 3. The bit to its left is used to store whether the block itself is
- * allocated.
+ *    allocated.
  *
  * 4. The remaining bits are used to store the size of the block in number of
- * words.
+ *    words.
  *
  * Free blocks store a pointer to the next free block in the word right after
  * the header.
@@ -42,6 +42,23 @@
  * searches at most BEST_FIT_SEARCH_LIMIT number of blocks (unless a block
  * wasn't found in these many searches, in which case it will keep searching
  * till it does find a fit).
+ *
+ *
+ *
+ * The heap checker checks if:
+ * 1. Next and previous pointers in free list are consistent.
+ *
+ * 2. Adjacent blocks are not free (if they were, we have missed coalescing at
+ *    some point.
+ *
+ * 3. All free blocks are accounted for in some free list.
+ *
+ * 4. Header data i.e. size and boolean bits (prev_alloc, prev_min and alloc)
+ *    are consistent.
+ *
+ * 5. All free blocks are marked as free.
+ *
+ * 6. Addresses are in the heap, and non-overlapping.
  *
  */
 
