@@ -99,9 +99,6 @@ typedef u_int64_t word_t;
 #define FREE_TABLE_SIZE 0x10
 static word_t *free_table[FREE_TABLE_SIZE] = {0};
 
-static void Free_List_Print(void);
-static void Heap_Print(void);
-
 // Returns whether the pointer is in the heap.
 // May be useful for debugging.
 static bool
