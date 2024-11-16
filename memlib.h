@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#define MAX_HEAP_SIZE (1ull*(1ull<<40)) /* 1 TB */
+
 void mem_init();               
 void mem_deinit(void);
 void *mem_sbrk(intptr_t incr);

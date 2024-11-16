@@ -1,67 +1,3 @@
-/*
- * mm.c
- *
- * Name 1: Nimai Patel
- * PSU ID 1: nmp5838
- *
- * Name 2: Manay Lodha
- * PSU ID 2: mnl5238
- *
- * This is a malloc implementation that returns double word aligned blocks of
- * memory.
- *
- * All blocks store a header that is one word long.
- *
- * 1. The lowest bit is used to store whether the previous block is of minimum
- *    size.
- *
- * 2. The bit to its left is used to store whether the previous block is
- *    allocated.
- *
- * 3. The bit to its left is used to store whether the block itself is
- *    allocated.
- *
- * 4. The remaining bits are used to store the size of the block in number of
- *    words.
- *
- * Free blocks store a pointer to the next free block in the word right after
- * the header.
- *
- * If the free block is of size > MIN_BLOCK_SIZE then it stores a pointer to the
- * previous free block in the word after that.
- *
- * If the free block is of size > MIN_BLOCK_SIZE then it stores a footer as
- * well, which is identical to the header.
- *
- * We use segregated free lists. Refer to Size_Get_Bin_Index function for bin
- * sizes. This is the ONLY global static memory that we use. FREE_TABLE_SIZE is
- * set to 16, since each pointer is 8 bytes, the total global static memory used
- * is 128 which is the maximum we can use as per the project requirement.
- *
- * We use a best fit search for finding free blocks in the free list. It
- * searches at most BEST_FIT_SEARCH_LIMIT number of blocks (unless a block
- * wasn't found in these many searches, in which case it will keep searching
- * till it does find a fit).
- *
- *
- *
- * The heap checker checks if:
- * 1. Next and previous pointers in free list are consistent.
- *
- * 2. Adjacent blocks are not free (if they were, we have missed coalescing at
- *    some point.
- *
- * 3. All free blocks are accounted for in some free list.
- *
- * 4. Header data i.e. size and boolean bits (prev_alloc, prev_min and alloc)
- *    are consistent.
- *
- * 5. All free blocks are marked as free.
- *
- * 6. Addresses are in the heap, and non-overlapping.
- *
- */
-
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,11 +9,6 @@
 #include "mm.h"
 #include "memlib.h"
 
-// If you want to enable your debugging output and heap checker code,
-// uncomment the following line. Be sure not to have debugging enabled
-// in your final submission.
-// #define DEBUG
-
 #ifdef DEBUG
 /* When debugging is enabled, the underlying functions get called */
 #define dbg_printf(...) printf(__VA_ARGS__)
@@ -88,18 +19,7 @@
 #define dbg_assert(...)
 #endif /* DEBUG */
 
-/* do not change the following! */
-#ifdef DRIVER
-/* create aliases for driver tests */
-#define malloc mm_malloc
-#define free mm_free
-#define realloc mm_realloc
-#define calloc mm_calloc
-#define memset mem_memset
-#define memcpy mem_memcpy
-#endif /* DRIVER */
-
-typedef u_int64_t word_t;
+typedef uint64_t word_t;
 
 #define WORD_SIZE (sizeof(word_t))
 #define ALIGNMENT (2 * WORD_SIZE)
@@ -114,7 +34,7 @@ typedef u_int64_t word_t;
 #define BEST_FIT_SEARCH_LIMIT 0x10
 
 #define FREE_TABLE_SIZE 0x10
-static word_t *free_table[FREE_TABLE_SIZE] = {0};
+static word_t *free_table[FREE_TABLE_SIZE] = { 0 };
 
 // Returns whether the pointer is in the heap.
 // May be useful for debugging.
@@ -147,7 +67,7 @@ min_size_t(const size_t a, const size_t b)
 static inline size_t
 align(const size_t x)
 {
-    return ALIGNMENT * ((x+ALIGNMENT-1)/ALIGNMENT);
+    return ALIGNMENT * ((x + ALIGNMENT - 1) / ALIGNMENT);
 }
 
 // Given some number of bytes, return smallest amount of words we need to store
@@ -156,7 +76,8 @@ align(const size_t x)
 static inline size_t
 Aligned_Word_Size(const size_t size_bytes)
 {
-    return max_size_t(align(size_bytes + WORD_SIZE) / WORD_SIZE, MIN_BLOCK_SIZE);
+    return max_size_t(align(size_bytes + WORD_SIZE) / WORD_SIZE,
+                      MIN_BLOCK_SIZE);
 }
 
 // Takes block_size and returns index of the free list bin it should be or is
@@ -176,13 +97,15 @@ Size_Get_Bin_Index(size_t block_size)
 
 // Make tag from metadata.
 static inline word_t
-Tag_Pack(const size_t size, const bool alloc, const bool prev_alloc, const bool prev_min)
+Tag_Pack(const size_t size, const bool alloc, const bool prev_alloc,
+         const bool prev_min)
 {
     // TODO: footers only need to store size with with the footer optimization now
     // check the size can fit in the number of bits we have available...
     dbg_assert(size < ((size_t)1 << (WORD_SIZE_BITS - 3)) - 1);
 
-    return (size << 3 | (word_t)alloc << 2 | (word_t)prev_alloc << 1 | (word_t)prev_min);
+    return (size << 3 | (word_t)alloc << 2 | (word_t)prev_alloc << 1 |
+            (word_t)prev_min);
 }
 
 // Get size of block from a tag.
@@ -287,7 +210,8 @@ Block_Get_Prev_Adj(word_t *block)
 {
     dbg_assert(Block_Get_Prev_Alloc(block) == false);
 
-    const size_t prev_size = Block_Get_Prev_Min(block) ? MIN_BLOCK_SIZE : Tag_Get_Size(block[-1]);
+    const size_t prev_size =
+        Block_Get_Prev_Min(block) ? MIN_BLOCK_SIZE : Tag_Get_Size(block[-1]);
     return block - prev_size;
 }
 
@@ -320,7 +244,7 @@ Block_Unlink_Free_List(const word_t *block)
             prev = curr;
             curr = Block_Get_Next_Free(curr);
         }
-        
+
         dbg_assert(curr != NULL);
 
     } else {
@@ -423,7 +347,8 @@ Block_Coalesce(word_t *block)
 
 // Marks the block as free, coalesces and adds to the free list.
 static inline word_t *
-Block_Free(word_t *block, const size_t size, const bool prev_alloc, const bool prev_min)
+Block_Free(word_t *block, const size_t size, const bool prev_alloc,
+           const bool prev_min)
 {
     const word_t tag = Tag_Pack(size, false, prev_alloc, prev_min);
     block[0] = tag;
@@ -449,7 +374,8 @@ Block_Alloc(word_t *block, const size_t block_size, const size_t alloc_size)
         const word_t tag = Tag_Pack(alloc_size, true, prev_alloc, prev_min);
         block[0] = tag;
         word_t *next = Block_Get_Next_Adj(block);
-        Block_Free(next, block_size - alloc_size, true, (alloc_size == MIN_BLOCK_SIZE));
+        Block_Free(next, block_size - alloc_size, true,
+                   (alloc_size == MIN_BLOCK_SIZE));
     }
 }
 
@@ -471,7 +397,8 @@ Heap_Grow(size_t size)
 
     // set header and footer of new free block...
     word_t *block = p - 1;
-    block = Block_Free(block, size, Block_Get_Prev_Alloc(block), Block_Get_Prev_Min(block));
+    block = Block_Free(block, size, Block_Get_Prev_Alloc(block),
+                       Block_Get_Prev_Min(block));
 
     return block;
 }
@@ -491,7 +418,7 @@ mm_init(void)
     if (heap_start == NULL) {
         return false;
     }
-    
+
     dbg_assert(mem_heap_lo() == heap_start);
 
     // re-initialize the free_list_head to NULL in case mm_init() is called
@@ -518,7 +445,7 @@ mm_init(void)
 
 // malloc
 void *
-malloc(const size_t size)
+mm_malloc(const size_t size)
 {
     mm_checkheap(__LINE__);
 
@@ -553,9 +480,8 @@ malloc(const size_t size)
     word_t *best_block = block;
 
     // keep searching for a better fit in the same free list up to a limit...
-    while (block &&
-            Block_Get_Size(block) != aligned_size &&
-            counter < BEST_FIT_SEARCH_LIMIT) {
+    while (block && Block_Get_Size(block) != aligned_size &&
+           counter < BEST_FIT_SEARCH_LIMIT) {
         dbg_assert(Block_Get_Alloc(block) == false);
 
         counter += 1;
@@ -588,7 +514,7 @@ malloc(const size_t size)
 
 // free
 void
-free(void *ptr)
+mm_free(void *ptr)
 {
     mm_checkheap(__LINE__);
 
@@ -600,24 +526,25 @@ free(void *ptr)
     word_t *block = (word_t *)ptr - 1;
 
     // mark block as free and inform next adjacent block...
-    Block_Free(block, Block_Get_Size(block), Block_Get_Prev_Alloc(block), Block_Get_Prev_Min(block));
+    Block_Free(block, Block_Get_Size(block), Block_Get_Prev_Alloc(block),
+               Block_Get_Prev_Min(block));
 }
 
 // realloc
 void *
-realloc(void *ptr, const size_t size)
+mm_realloc(void *ptr, const size_t size)
 {
     mm_checkheap(__LINE__);
 
     // if we are shrinking to 0 bytes, it is essentially just a call to free...
-    if(size == 0) {
+    if (size == 0) {
         free(ptr);
         return NULL;
     }
 
     // if ptr is NULL then this is essentially just a call to malloc...
-    if(!ptr) {
-        return malloc(size);
+    if (!ptr) {
+        return mm_malloc(size);
     }
 
     const size_t aligned_size = Aligned_Word_Size(size);
@@ -636,7 +563,7 @@ realloc(void *ptr, const size_t size)
     const bool next_is_free = !Block_Get_Alloc(next);
     size_t next_size = Block_Get_Size(next);
 
-    if (next_is_free && next_size + old_size >= aligned_size)  {
+    if (next_is_free && next_size + old_size >= aligned_size) {
         // we found a free block next to us and it has enough free space...
         Block_Unlink_Free_List(next);
         Block_Alloc(block, old_size + next_size, aligned_size);
@@ -644,8 +571,8 @@ realloc(void *ptr, const size_t size)
     }
 
     // if nothing works, just do the dumb thing...
-    void *new = malloc(size);
-    if(!new) {
+    void *new = mm_malloc(size);
+    if (!new) {
         return NULL;
     }
 
@@ -653,21 +580,6 @@ realloc(void *ptr, const size_t size)
     free(ptr);
 
     return new;
-
-}
-
-// calloc: This function is not tested by mdriver, and has been implemented for
-// you.
-void *
-calloc(size_t nmemb, size_t size)
-{
-    void *ptr;
-    size *= nmemb;
-    ptr = malloc(size);
-    if (ptr) {
-        memset(ptr, 0, size);
-    }
-    return ptr;
 }
 
 // Returns whether the pointer is aligned.
@@ -675,7 +587,7 @@ calloc(size_t nmemb, size_t size)
 static bool
 aligned(const void *p)
 {
-    size_t ip = (size_t) p;
+    size_t ip = (size_t)p;
     return align(ip) == ip;
 }
 
@@ -686,7 +598,8 @@ Block_Print(word_t *block)
 {
     if (!block) {
         const char *fmt = "%-18s %-18s %-18s %-10s %-10s %-10s\n";
-        dbg_printf(fmt, "address", "word", "size", "alloc", "prev_alloc", "prev_min");
+        dbg_printf(fmt, "address", "word", "size", "alloc", "prev_alloc",
+                   "prev_min");
         return;
     }
 
@@ -697,7 +610,8 @@ Block_Print(word_t *block)
     const bool prev_min = Block_Get_Prev_Min(block);
 
     const char *fmt = "0x%016lx 0x%016lx 0x%016lx %-10s %-10s %-10s\n";
-    dbg_printf(fmt, word, *word, size, Bool_Str(alloc), Bool_Str(prev_alloc), Bool_Str(prev_min));
+    dbg_printf(fmt, word, *word, size, Bool_Str(alloc), Bool_Str(prev_alloc),
+               Bool_Str(prev_min));
 }
 #endif // Block_Print(...)
 
@@ -743,12 +657,11 @@ Free_List_Print(void)
         word_t *block = free_table[i];
 
         dbg_printf("list %d...\n", i);
-        while(block) {
+        while (block) {
             Block_Print(block);
 
             block = Block_Get_Next_Free(block);
         }
-
     }
     dbg_printf("Free lists end...\n\n");
 #endif // Free_List_Print(...)
@@ -758,11 +671,10 @@ Free_List_Print(void)
 bool
 mm_checkheap(int lineno)
 {
-
     bool ret = true;
 
-#ifdef DEBUG
- 
+#ifdef DEBUG_HEAPCHECKER
+
     size_t n_free = 0;
     for (size_t i = 0; i < FREE_TABLE_SIZE; i += 1) {
         word_t *prev = NULL;
@@ -773,19 +685,23 @@ mm_checkheap(int lineno)
             if (Block_Get_Alloc(block) == true) {
                 ret = false;
                 dbg_printf("line %d: block at %p is in free list "
-                        "but marked as allocated\n", lineno, block);
+                           "but marked as allocated\n",
+                           lineno, block);
             }
 
             // check prev and next pointers are consistent...
-            if (Block_Get_Size(block) > MIN_BLOCK_SIZE && Block_Get_Prev_Free(block) != prev) {
+            if (Block_Get_Size(block) > MIN_BLOCK_SIZE &&
+                Block_Get_Prev_Free(block) != prev) {
                 ret = false;
-                dbg_printf("line %d: inconsistent prev pointer for block at %p\n",
-                        lineno, block);
+                dbg_printf(
+                    "line %d: inconsistent prev pointer for block at %p\n",
+                    lineno, block);
             }
 
             if (Size_Get_Bin_Index(Block_Get_Size(block)) != i) {
                 ret = false;
-                dbg_printf("line %d: %p has size %ld but is in bin %ld\n", lineno, block, Block_Get_Size(block), i);
+                dbg_printf("line %d: %p has size %ld but is in bin %ld\n",
+                           lineno, block, Block_Get_Size(block), i);
             }
 
             prev = block;
@@ -805,22 +721,25 @@ mm_checkheap(int lineno)
             if (prev && Block_Get_Alloc(prev) == false) {
                 ret = false;
                 dbg_printf("line %d: block at %p is free "
-                        "but one before it at %p is also free\n",
-                        lineno, block, prev);
+                           "but one before it at %p is also free\n",
+                           lineno, block, prev);
             }
 
             // check that adjacent blocks are not free...
             if (next != block && Block_Get_Alloc(next) == false) {
                 ret = false;
                 dbg_printf("line %d: block at %p is free "
-                        "but one after it at %p is also free\n",
-                        lineno, block, next);
+                           "but one after it at %p is also free\n",
+                           lineno, block, next);
             }
         }
 
-        if (prev && Block_Get_Prev_Min(block) != (Block_Get_Size(prev) == MIN_BLOCK_SIZE)) {
+        if (prev && Block_Get_Prev_Min(block) !=
+                        (Block_Get_Size(prev) == MIN_BLOCK_SIZE)) {
             ret = false;
-            dbg_printf("line %d: block %p has prev_min set to %d but size of previous block is %ld\n", lineno, block, Block_Get_Prev_Min(block), Block_Get_Size(prev));
+            dbg_printf(
+                "line %d: block %p has prev_min set to %d but size of previous block is %ld\n",
+                lineno, block, Block_Get_Prev_Min(block), Block_Get_Size(prev));
         }
 
         prev = block;
@@ -833,8 +752,8 @@ mm_checkheap(int lineno)
     if (last_byte != mem_heap_hi()) {
         ret = false;
         dbg_printf("line %d: boundary tag is not exactly at the end "
-                "of the heap last byte is at %p but end of heap is at %p\n",
-                lineno, last_byte, mem_heap_hi());
+                   "of the heap last byte is at %p but end of heap is at %p\n",
+                   lineno, last_byte, mem_heap_hi());
     }
 
     // check number of free blocks is consistent from free list and heap
@@ -842,10 +761,10 @@ mm_checkheap(int lineno)
     if (n_free != n_free2) {
         ret = false;
         dbg_printf("line %d: while traversing free list found %ld free blocks "
-                ", but while traversing heap, found %ld free blocks\n",
-                lineno, n_free, n_free2);
+                   ", but while traversing heap, found %ld free blocks\n",
+                   lineno, n_free, n_free2);
     }
-#endif /* DEBUG */
+#endif // DEBUG_HEAPCHECKER
 
     return ret;
 }
