@@ -25,7 +25,7 @@ static unsigned char *mem_max_addr;
  * mem_init - initialize the memory system model
  */
 void
-mem_init()
+mem_init(void)
 {
     unsigned char *addr = mmap(NULL, MAX_HEAP_SIZE, PROT_READ | PROT_WRITE,
                                MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1,
@@ -55,7 +55,7 @@ mem_deinit(void)
  * mem_reset_brk - reset the simulated brk pointer to make an empty heap
  */
 void
-mem_reset_brk()
+mem_reset_brk(void)
 {
     mem_brk = heap;
 }
@@ -98,7 +98,7 @@ mem_sbrk(intptr_t incr)
  * mem_heap_lo - return address of the first heap byte
  */
 void *
-mem_heap_lo()
+mem_heap_lo(void)
 {
     return (void *)heap;
 }
@@ -107,7 +107,7 @@ mem_heap_lo()
  * mem_heap_hi - return address of last heap byte
  */
 void *
-mem_heap_hi()
+mem_heap_hi(void)
 {
     return (void *)(mem_brk - 1);
 }
@@ -116,7 +116,7 @@ mem_heap_hi()
  * mem_heapsize() - returns the heap size in bytes
  */
 size_t
-mem_heapsize()
+mem_heapsize(void)
 {
     return (size_t)(mem_brk - heap);
 }
@@ -125,7 +125,7 @@ mem_heapsize()
  * mem_pagesize() - returns the page size of the system
  */
 size_t
-mem_pagesize()
+mem_pagesize(void)
 {
     return (size_t)getpagesize();
 }
@@ -210,15 +210,15 @@ hprobe(void *ptr, int offset, size_t count)
     unsigned char *iptr;
     if ((void *)cptr_lo < mem_heap_lo()) {
         fprintf(stderr, "Invalid probe.  Address %p is below start of heap\n",
-                cptr_lo);
+                (void *)cptr_lo);
         return;
     }
     if ((void *)cptr_hi > mem_heap_hi()) {
         fprintf(stderr, "Invalid probe.  Address %p is beyond end of heap\n",
-                cptr_lo);
+                (void *)cptr_lo);
         return;
     }
-    printf("Bytes %p...%p: 0x", cptr_hi, cptr_lo);
+    printf("Bytes %p...%p: 0x", (void *)cptr_hi, (void *)cptr_lo);
     for (iptr = cptr_hi; iptr >= cptr_lo; iptr--)
         printf("%.2x", (unsigned)mem_read((void *)iptr, 1));
     printf("\n");
