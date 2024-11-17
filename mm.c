@@ -577,7 +577,7 @@ mm_realloc(void *ptr, const size_t size)
     }
 
     memcpy(new, ptr, old_size * WORD_SIZE);
-    free(ptr);
+    mm_free(ptr);
 
     return new;
 }
@@ -768,4 +768,3 @@ mm_checkheap(int lineno)
 
     return ret;
 }
-
