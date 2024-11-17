@@ -9,20 +9,19 @@ main(void)
 
     mm_init();
 
-    int *nice;
-    nice = mm_malloc(sizeof(*nice));
-    printf("pointer nice = 0x%lx\n", (unsigned long)(nice));
-    mm_free(nice);
-    nice = mm_malloc(sizeof(*nice));
-    printf("pointer nice = 0x%lx\n", (unsigned long)(nice));
-    nice = mm_malloc(sizeof(*nice));
-    printf("pointer nice = 0x%lx\n", (unsigned long)(nice));
-    nice = mm_malloc(sizeof(*nice));
-    printf("pointer nice = 0x%lx\n", (unsigned long)(nice));
-    nice = mm_malloc(sizeof(*nice));
-    printf("pointer nice = 0x%lx\n", (unsigned long)(nice));
+    int *some_ptr;
+    some_ptr = mm_malloc(sizeof(*some_ptr));
+    printf("pointer some_ptr = 0x%lx\n", (unsigned long)(some_ptr));
+    mm_free(some_ptr);
+    some_ptr = mm_malloc(sizeof(*some_ptr));
+    printf("pointer some_ptr = 0x%lx\n", (unsigned long)(some_ptr));
+    some_ptr = mm_malloc(sizeof(*some_ptr));
+    printf("pointer some_ptr = 0x%lx\n", (unsigned long)(some_ptr));
+    some_ptr = mm_malloc(sizeof(*some_ptr));
+    printf("pointer some_ptr = 0x%lx\n", (unsigned long)(some_ptr));
+    some_ptr = mm_malloc(sizeof(*some_ptr));
+    printf("pointer some_ptr = 0x%lx\n", (unsigned long)(some_ptr));
 
     mem_deinit();
     return 0;
 }
-
