@@ -10,14 +10,12 @@
 #include "memlib.h"
 
 #ifdef DEBUG
-/* When debugging is enabled, the underlying functions get called */
 #define dbg_printf(...) printf(__VA_ARGS__)
 #define dbg_assert(...) assert(__VA_ARGS__)
 #else
-/* When debugging is disabled, no code gets generated */
 #define dbg_printf(...)
 #define dbg_assert(...)
-#endif /* DEBUG */
+#endif // DEBUG
 
 typedef uint64_t word_t;
 
@@ -35,6 +33,8 @@ typedef uint64_t word_t;
 
 #define FREE_TABLE_SIZE 0x10
 static word_t *free_table[FREE_TABLE_SIZE] = { 0 };
+
+static bool Heap_Check(int lineno);
 
 // Returns whether the pointer is in the heap.
 // May be useful for debugging.
@@ -447,7 +447,7 @@ mm_init(void)
 void *
 mm_malloc(const size_t size)
 {
-    mm_checkheap(__LINE__);
+    Heap_Check(__LINE__);
 
     if (size == 0) {
         return NULL;
@@ -516,7 +516,7 @@ mm_malloc(const size_t size)
 void
 mm_free(void *ptr)
 {
-    mm_checkheap(__LINE__);
+    Heap_Check(__LINE__);
 
     if (!ptr) {
         return;
@@ -534,7 +534,7 @@ mm_free(void *ptr)
 void *
 mm_realloc(void *ptr, const size_t size)
 {
-    mm_checkheap(__LINE__);
+    Heap_Check(__LINE__);
 
     // if we are shrinking to 0 bytes, it is essentially just a call to free...
     if (size == 0) {
@@ -667,9 +667,9 @@ Free_List_Print(void)
 #endif // Free_List_Print(...)
 }
 
-// mm_checkheap
+// Heap_Check
 bool
-mm_checkheap(int lineno)
+Heap_Check(int lineno)
 {
     bool ret = true;
 

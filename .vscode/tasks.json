@@ -6,7 +6,12 @@
         {
             "label": "debug build",
             "type": "shell",
-            "command": "./build.sh"
+            "command": "./build.sh",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         }
     ]
 }
