@@ -10,18 +10,19 @@
 #include <stdint.h>
 
 #include "memlib.h"
+#include "defines.h"
 
-static unsigned char *heap;
-static unsigned char *mem_brk;
-static unsigned char *mem_max_addr;
+static U8 *heap;
+static U8 *mem_brk;
+static U8 *mem_max_addr;
 
 // mem_init - initialize the memory system model
 void
 mem_init(void)
 {
-    unsigned char *addr = mmap(NULL, MAX_HEAP_SIZE, PROT_READ | PROT_WRITE,
-                               MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1,
-                               0);
+    U8 *addr = mmap(NULL, MAX_HEAP_SIZE, PROT_READ | PROT_WRITE,
+                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1,
+                   0);
     if (addr == MAP_FAILED) {
         fprintf(stderr, "FAILURE.  mmap couldn't allocate space for heap\n");
         exit(1);
@@ -54,7 +55,7 @@ mem_reset_brk(void)
 void *
 mem_sbrk(intptr_t incr)
 {
-    unsigned char *old_brk = mem_brk;
+    U8 *old_brk = mem_brk;
 
     bool ok = true;
     if (incr < 0) {
