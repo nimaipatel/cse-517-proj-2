@@ -12,6 +12,8 @@
 #include "trace_parser.h"
 
 static const Char8 *traces[] = {
+    // These are traces from CMU malloc lab, used in this project with
+    // permission from professor Randy Bryant and Professor David O'Hallaron
     "traces/bdd-aa32.rep",         "traces/bdd-aa4.rep",
     "traces/bdd-ma4.rep",          "traces/bdd-nq7.rep",
     "traces/cbit-abs.rep",         "traces/cbit-parity.rep",

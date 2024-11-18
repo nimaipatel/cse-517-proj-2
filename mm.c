@@ -650,7 +650,7 @@ Free_List_Print(void)
     for (size_t i = 0; i < FREE_TABLE_SIZE; i += 1) {
         Word *block = free_table[i];
 
-        dbg_printf("list %d...\n", i);
+        dbg_printf("list %zu...\n", i);
         while (block) {
             Block_Print(block);
 
@@ -663,7 +663,7 @@ Free_List_Print(void)
 
 // Heap_Check
 bool
-Heap_Check(int lineno)
+Heap_Check(size_t lineno)
 {
     bool ret = true;
 
