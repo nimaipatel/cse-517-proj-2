@@ -32,8 +32,9 @@ main(void)
     Heap_Sim_Init();
 
     for (size_t i = 0; i < NUM_TRACES; i += 1) {
-        String_View input = String_View_Read_File(traces[i]);
-        Trace trace = Trace_Parse(input);
+        String input = String_Read_File(traces[i]);
+        Trace trace = Trace_Parse(String_Slice(input, 0, input.len));
+
         Trace_Run_Result result = Trace_Run(trace);
         Vec_U64_Stats_Result malloc_stats = Vec_U64_Stats(result.malloc_inst);
         Vec_U64_Stats_Result realloc_stats = Vec_U64_Stats(result.realloc_inst);
@@ -47,6 +48,8 @@ main(void)
         printf("free: %f ± %f\n", free_stats.mean, free_stats.margin_of_error);
         printf("util: %f\n", result.util);
         printf("\n");
+
+        String_Release(input);
     }
 
     Heap_Sim_Release();
