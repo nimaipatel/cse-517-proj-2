@@ -12,10 +12,19 @@ DEV_FLAGS+=" -g3 -O0 -DDEBUG -D_GLIBC_DEBUG"
 
 RELEASE_FLAGS="-O3 -DNDEBUG"
 
-SRC="main.c mm.c memlib.c perf.c vec_u64.c string_view.c trace.c"
+SRC="main.c"
+SRC+=" mm.c"
+SRC+=" memlib.c"
+SRC+=" perf.c"
+SRC+=" vec_u64.c"
+SRC+=" string_view.c"
+SRC+=" trace_parser.c"
 
 if [ "$1" = "debug" ]; then
     $CC $FLAGS $DEV_FLAGS $SRC -o main
-else
+elif [ "$1" = "release" ]; then
     $CC $FLAGS $RELEASE_FLAGS $SRC -o main
+else
+    echo "Unknown build type"
+    exit 1
 fi

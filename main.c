@@ -9,7 +9,7 @@
 #include "vec_u64.h"
 #include "defines.h"
 #include "string_view.h"
-#include "trace.h"
+#include "trace_parser.h"
 
 static const char *traces[] = {
     "traces/bdd-aa32.rep",         "traces/bdd-aa4.rep",

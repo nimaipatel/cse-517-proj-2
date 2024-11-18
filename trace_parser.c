@@ -4,7 +4,7 @@
 
 #include "defines.h"
 #include "string_view.h"
-#include "trace.h"
+#include "trace_parser.h"
 
 static Char8
 Trace_Parse_Char(String_View input, size_t *index)

@@ -21,8 +21,7 @@ void
 mem_init(void)
 {
     Char8 *addr = mmap(NULL, MAX_HEAP_SIZE, PROT_READ | PROT_WRITE,
-                   MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1,
-                   0);
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
     if (addr == MAP_FAILED) {
         fprintf(stderr, "FAILURE.  mmap couldn't allocate space for heap\n");
         exit(1);
