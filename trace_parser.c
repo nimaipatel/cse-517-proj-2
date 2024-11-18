@@ -113,19 +113,19 @@ Trace_Parse(String_View input)
         switch (c) {
         case 'a': {
             ops[op_index] = Trace_Parse_Alloc(input, &index);
-            max_id = MAX(ops[op_index].index, max_id);
+            max_id = MAX(ops[op_index].id, max_id);
             break;
         }
 
         case 'r': {
             ops[op_index] = Trace_Parse_Realloc(input, &index);
-            max_id = MAX(ops[op_index].index, max_id);
+            max_id = MAX(ops[op_index].id, max_id);
             break;
         }
 
         case 'f': {
             ops[op_index] = Trace_Parse_Free(input, &index);
-            max_id = MAX(ops[op_index].index, max_id);
+            max_id = MAX(ops[op_index].id, max_id);
             break;
         }
 

@@ -405,7 +405,7 @@ Heap_Grow(size_t size)
 
 // Initialize: returns false on error, true on success.
 bool
-M_init(void)
+M_Init(void)
 {
     // one word each for the special tags at start and end of the heap...
     Word *heap_start = Heap_Sim_Sbrk(sizeof(Word) + sizeof(Word));
@@ -415,7 +415,7 @@ M_init(void)
 
     dbg_assert(Heap_Sim_Get_Low() == heap_start);
 
-    // re-initialize the free_list_head to NULL in case M_init() is called
+    // re-initialize the free_list_head to NULL in case M_Init() is called
     // multiple times...
     memset(free_table, 0, sizeof(free_table));
 

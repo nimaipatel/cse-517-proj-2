@@ -8,6 +8,6 @@ void *M_malloc(size_t size);
 void M_free(void *ptr);
 void *M_realloc(void *ptr, size_t size);
 void *M_calloc(size_t nmemb, size_t size);
-bool M_init(void);
+bool M_Init(void);
 
 #endif // _MM_H

@@ -6,7 +6,7 @@
 
 typedef struct Trace_Op {
     enum { ALLOC, FREE, REALLOC } type;
-    size_t index;
+    size_t id;
     size_t size;
 } Trace_Op;
 

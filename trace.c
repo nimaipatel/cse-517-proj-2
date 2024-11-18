@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <linux/perf_event.h>
 #include <assert.h>
 
@@ -14,15 +15,22 @@ Trace_Run(Trace trace)
 {
     Heap_Sim_Brk();
 
-    if (!M_init()) {
-        return (struct Trace_Run_Result){ 0 };
+    if (!M_Init()) {
+        fprintf(stderr, "M_Init failed\n");
+        exit(1);
     }
 
     void **alloc_ptrs = malloc(trace.num_ids * sizeof(*alloc_ptrs));
-    assert(alloc_ptrs);
+    if (alloc_ptrs == NULL) {
+        fprintf(stderr, "malloc failed\n");
+        exit(1);
+    }
 
     size_t *alloc_sizes = malloc(trace.num_ids * sizeof(*alloc_sizes));
-    assert(alloc_sizes);
+    if (alloc_sizes == NULL) {
+        fprintf(stderr, "malloc failed\n");
+        exit(1);
+    }
 
     Vec_U64 malloc_inst = { 0 };
     Vec_U64 realloc_inst = { 0 };
@@ -30,13 +38,13 @@ Trace_Run(Trace trace)
 
     // TODO: check success of malloc, realloc, free...
     for (size_t i = 0; i < trace.num_ops; i += 1) {
-        size_t index = trace.ops[i].index;
+        size_t id = trace.ops[i].id;
         size_t size = trace.ops[i].size;
 
         switch (trace.ops[i].type) {
         case ALLOC: {
             int fd = Perf_Start(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
-            alloc_ptrs[index] = M_malloc(size);
+            alloc_ptrs[id] = M_malloc(size);
             U64 cycles = Perf_Stop(fd);
             Vec_U64_Push(&malloc_inst, cycles);
             break;
@@ -44,7 +52,7 @@ Trace_Run(Trace trace)
 
         case REALLOC: {
             int fd = Perf_Start(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
-            alloc_ptrs[index] = M_realloc(alloc_ptrs[index], size);
+            alloc_ptrs[id] = M_realloc(alloc_ptrs[id], size);
             U64 cycles = Perf_Stop(fd);
             Vec_U64_Push(&realloc_inst, cycles);
             break;
@@ -52,7 +60,7 @@ Trace_Run(Trace trace)
 
         case FREE: {
             int fd = Perf_Start(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
-            M_free(alloc_ptrs[index]);
+            M_free(alloc_ptrs[id]);
             U64 cycles = Perf_Stop(fd);
             Vec_U64_Push(&free_inst, cycles);
             break;
