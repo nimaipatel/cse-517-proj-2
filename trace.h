@@ -3,6 +3,7 @@
 
 #include "defines.h"
 #include "vec_u64.h"
+#include "vec_f64.h"
 
 typedef struct Trace_Op {
     enum { ALLOC, FREE, REALLOC } type;
@@ -17,12 +18,13 @@ typedef struct Trace {
     Trace_Op *ops;
 } Trace;
 
-struct Trace_Run_Result {
+typedef struct Trace_Run_Result {
     Vec_U64 malloc_inst;
     Vec_U64 realloc_inst;
     Vec_U64 free_inst;
-};
+    Vec_F64 util_vec;
+} Trace_Run_Result;
 
-struct Trace_Run_Result Trace_Run(Trace);
+Trace_Run_Result Trace_Run(Trace);
 
 #endif // _TRACE_H

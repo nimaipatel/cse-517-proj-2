@@ -19,6 +19,7 @@ SRC+=" mm.c"
 SRC+=" memlib.c"
 SRC+=" perf.c"
 SRC+=" vec_u64.c"
+SRC+=" vec_f64.c"
 SRC+=" string_view.c"
 
 if [ "$1" = "debug" ]; then

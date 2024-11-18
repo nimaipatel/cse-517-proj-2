@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <assert.h>
 
 typedef char Char8;
 
@@ -17,10 +18,10 @@ typedef signed short S16;
 typedef signed int S32;
 typedef signed long long S64;
 
-typedef uintptr_t Word;
+typedef double F64;
+typedef float F32;
 
-static_assert(sizeof(void *) == sizeof(Word), "");
-static_assert(sizeof(size_t) == sizeof(Word), "");
+typedef uintptr_t Word;
 
 static_assert(sizeof(U8) == 1, "");
 static_assert(sizeof(U16) == 2, "");
@@ -31,6 +32,12 @@ static_assert(sizeof(S8) == 1, "");
 static_assert(sizeof(S16) == 2, "");
 static_assert(sizeof(S32) == 4, "");
 static_assert(sizeof(S64) == 8, "");
+
+static_assert(sizeof(F32) == 4, "");
+static_assert(sizeof(F64) == 8, "");
+
+static_assert(sizeof(void *) == sizeof(Word), "");
+static_assert(sizeof(size_t) == sizeof(Word), "");
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
