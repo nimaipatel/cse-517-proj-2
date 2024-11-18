@@ -34,7 +34,7 @@ static_assert(MIN_BLOCK_SIZE % 2 == 0, "");
 static Word *free_table[FREE_TABLE_SIZE] = { 0 };
 static_assert(sizeof(free_table) <= 128, "");
 
-static bool Heap_Check(int lineno);
+static bool Heap_Check(size_t lineno);
 
 // Returns whether the pointer is in the heap.
 // May be useful for debugging.
@@ -647,7 +647,7 @@ Free_List_Print(void)
 #ifdef DEBUG // Free_List_Print(...)
     dbg_printf("\nFree lists start...\n");
     Block_Print(NULL);
-    for (int i = 0; i < FREE_TABLE_SIZE; i += 1) {
+    for (size_t i = 0; i < FREE_TABLE_SIZE; i += 1) {
         Word *block = free_table[i];
 
         dbg_printf("list %d...\n", i);

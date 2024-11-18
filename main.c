@@ -61,7 +61,7 @@ Trace_Run(Trace trace)
         case ALLOC: {
             int fd = Perf_Start(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
             alloc_ptrs[index] = mm_malloc(size);
-            uint64_t cycles = Perf_Stop(fd);
+            U64 cycles = Perf_Stop(fd);
             Vec_U64_Push(&malloc_inst, cycles);
             break;
         }
@@ -69,7 +69,7 @@ Trace_Run(Trace trace)
         case REALLOC: {
             int fd = Perf_Start(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
             alloc_ptrs[index] = mm_realloc(alloc_ptrs[index], size);
-            uint64_t cycles = Perf_Stop(fd);
+            U64 cycles = Perf_Stop(fd);
             Vec_U64_Push(&realloc_inst, cycles);
             break;
         }
@@ -77,7 +77,7 @@ Trace_Run(Trace trace)
         case FREE: {
             int fd = Perf_Start(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
             mm_free(alloc_ptrs[index]);
-            uint64_t cycles = Perf_Stop(fd);
+            U64 cycles = Perf_Stop(fd);
             Vec_U64_Push(&free_inst, cycles);
             break;
         }
