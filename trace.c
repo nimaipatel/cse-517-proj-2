@@ -36,11 +36,11 @@ Trace_Run(Trace trace)
     Vec_U64 malloc_inst = { 0 };
     Vec_U64 realloc_inst = { 0 };
     Vec_U64 free_inst = { 0 };
-    Vec_F64 util_vec = { 0 };
 
     U64 total_alloc_size = 0;
+    U64 max_alloc_size = 0;
+    U64 max_heap_size = Heap_Sim_Get_Heap_Size();
 
-    // TODO: check success of malloc, realloc, free...
     for (size_t i = 0; i < trace.num_ops; i += 1) {
         size_t id = trace.ops[i].id;
         size_t size = trace.ops[i].size;
@@ -48,6 +48,7 @@ Trace_Run(Trace trace)
         switch (trace.ops[i].type) {
         case ALLOC: {
             int fd = Perf_Start(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
+            // TODO: check success of malloc, realloc, free...
             void *ptr = M_malloc(size);
             U64 cycles = Perf_Stop(fd);
 
@@ -84,8 +85,8 @@ Trace_Run(Trace trace)
         }
         }
 
-        double util = (double)total_alloc_size / (double)Heap_Sim_Get_Heap_Size();
-        Vec_F64_Push(&util_vec, util);
+        max_alloc_size = MAX(max_alloc_size, total_alloc_size);
+        max_heap_size = MAX(max_heap_size, Heap_Sim_Get_Heap_Size());
     }
 
     assert(malloc_inst.len + realloc_inst.len + free_inst.len == trace.num_ops);
@@ -97,6 +98,6 @@ Trace_Run(Trace trace)
         .malloc_inst = malloc_inst,
         .realloc_inst = realloc_inst,
         .free_inst = free_inst,
-        .util_vec = util_vec,
+        .util = (double)max_alloc_size / (double)max_heap_size,
     };
 }

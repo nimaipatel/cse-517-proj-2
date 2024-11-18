@@ -22,7 +22,7 @@ typedef struct Trace_Run_Result {
     Vec_U64 malloc_inst;
     Vec_U64 realloc_inst;
     Vec_U64 free_inst;
-    Vec_F64 util_vec;
+    F64 util;
 } Trace_Run_Result;
 
 Trace_Run_Result Trace_Run(Trace);

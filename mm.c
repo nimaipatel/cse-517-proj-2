@@ -76,8 +76,13 @@ align(const size_t x)
 static inline size_t
 Aligned_Word_Size(const size_t size_bytes)
 {
+#ifdef DISABLE_MINI_BLOCK_OPTIMIZATION
+    return max_size_t(align(size_bytes + sizeof(Word)) / sizeof(Word),
+                      MIN_BLOCK_SIZE + 2);
+#else
     return max_size_t(align(size_bytes + sizeof(Word)) / sizeof(Word),
                       MIN_BLOCK_SIZE);
+#endif // DISABLE_MINI_BLOCK_OPTIMIZATION
 }
 
 // Takes block_size and returns index of the free list bin it should be or is
@@ -366,7 +371,11 @@ Block_Alloc(Word *block, const size_t block_size, const size_t alloc_size)
     const bool prev_alloc = Block_Get_Prev_Alloc(block);
     const bool prev_min = Block_Get_Prev_Min(block);
 
+#ifdef DISABLE_MINI_BLOCK_OPTIMIZATION
+    if (block_size - alloc_size < MIN_BLOCK_SIZE + 2) {
+#else
     if (block_size - alloc_size < MIN_BLOCK_SIZE) {
+#endif // DISABLE_MINI_BLOCK_OPTIMIZATION
         const Word tag = Tag_Pack(block_size, true, prev_alloc, prev_min);
         block[0] = tag;
         Block_Inform_Next(block);

@@ -38,7 +38,6 @@ main(void)
         Vec_U64_Stats_Result malloc_stats = Vec_U64_Stats(result.malloc_inst);
         Vec_U64_Stats_Result realloc_stats = Vec_U64_Stats(result.realloc_inst);
         Vec_U64_Stats_Result free_stats = Vec_U64_Stats(result.free_inst);
-        Vec_F64_Stats_Result util_stats = Vec_F64_Stats(&result.util_vec);
 
         printf("%s:\n", traces[i]);
         printf("malloc: %f ± %f\n", malloc_stats.mean,
@@ -46,7 +45,7 @@ main(void)
         printf("realloc: %f ± %f\n", realloc_stats.mean,
                realloc_stats.margin_of_error);
         printf("free: %f ± %f\n", free_stats.mean, free_stats.margin_of_error);
-        printf("util: %f ± %f\n", util_stats.mean, util_stats.margin_of_error);
+        printf("util: %f\n", result.util);
         printf("\n");
     }
 
