@@ -11,7 +11,7 @@
 #include "string_view.h"
 #include "trace_parser.h"
 
-static const char *traces[] = {
+static const Char8 *traces[] = {
     "traces/bdd-aa32.rep",         "traces/bdd-aa4.rep",
     "traces/bdd-ma4.rep",          "traces/bdd-nq7.rep",
     "traces/cbit-abs.rep",         "traces/cbit-parity.rep",
