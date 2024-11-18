@@ -4,8 +4,7 @@
 #include <stdint.h>
 
 #include "vec_u64.h"
-
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#include "defines.h"
 
 void
 Vec_U64_Push(Vec_U64 *vec, uint64_t val)

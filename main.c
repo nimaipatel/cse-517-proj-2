@@ -7,6 +7,7 @@
 #include "memlib.h"
 #include "perf.h"
 #include "vec_u64.h"
+#include "defines.h"
 
 static const char *traces[] = {
     "traces/bdd-aa32.rep",         "traces/bdd-aa4.rep",
@@ -24,8 +25,6 @@ static const char *traces[] = {
 };
 
 #define NUM_TRACES (sizeof(traces) / sizeof(*traces))
-
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 typedef struct Trace_Op {
     enum { ALLOC, FREE, REALLOC } type;
