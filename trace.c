@@ -12,9 +12,9 @@
 struct Trace_Run_Result
 Trace_Run(Trace trace)
 {
-    mem_reset_brk();
+    Heap_Sim_Brk();
 
-    if (!mm_init()) {
+    if (!M_init()) {
         return (struct Trace_Run_Result){ 0 };
     }
 
@@ -36,7 +36,7 @@ Trace_Run(Trace trace)
         switch (trace.ops[i].type) {
         case ALLOC: {
             int fd = Perf_Start(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
-            alloc_ptrs[index] = mm_malloc(size);
+            alloc_ptrs[index] = M_malloc(size);
             U64 cycles = Perf_Stop(fd);
             Vec_U64_Push(&malloc_inst, cycles);
             break;
@@ -44,7 +44,7 @@ Trace_Run(Trace trace)
 
         case REALLOC: {
             int fd = Perf_Start(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
-            alloc_ptrs[index] = mm_realloc(alloc_ptrs[index], size);
+            alloc_ptrs[index] = M_realloc(alloc_ptrs[index], size);
             U64 cycles = Perf_Stop(fd);
             Vec_U64_Push(&realloc_inst, cycles);
             break;
@@ -52,7 +52,7 @@ Trace_Run(Trace trace)
 
         case FREE: {
             int fd = Perf_Start(PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
-            mm_free(alloc_ptrs[index]);
+            M_free(alloc_ptrs[index]);
             U64 cycles = Perf_Stop(fd);
             Vec_U64_Push(&free_inst, cycles);
             break;

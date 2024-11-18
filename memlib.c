@@ -12,63 +12,57 @@
 #include "memlib.h"
 #include "defines.h"
 
-static Char8 *heap;
-static Char8 *mem_brk;
-static Char8 *mem_max_addr;
+static U8 *heap;
+static U8 *mem_brk;
+static U8 *mem_max_addr;
 
-// mem_init - initialize the memory system model
 void
-mem_init(void)
+Heap_Sim_Init(void)
 {
-    Char8 *addr = mmap(NULL, MAX_HEAP_SIZE, PROT_READ | PROT_WRITE,
+    U8 *addr = mmap(NULL, MAX_HEAP_SIZE, PROT_READ | PROT_WRITE,
                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
     if (addr == MAP_FAILED) {
-        fprintf(stderr, "FAILURE.  mmap couldn't allocate space for heap\n");
+        fprintf(stderr, "mmap failed\n");
         exit(1);
     }
     heap = addr;
     mem_max_addr = addr + MAX_HEAP_SIZE;
-    mem_reset_brk();
+    Heap_Sim_Brk();
 }
 
-// mem_deinit - free the storage used by the memory system model
 void
-mem_deinit(void)
+Heap_Sim_Release(void)
 {
     if (munmap(heap, MAX_HEAP_SIZE) != 0) {
-        fprintf(stderr, "FAILURE.  munmap couldn't deallocate heap space\n");
+        fprintf(stderr, "munmap failed\n");
         exit(1);
     }
 }
 
-// mem_reset_brk - reset the simulated brk pointer to make an empty heap
 void
-mem_reset_brk(void)
+Heap_Sim_Brk(void)
 {
     mem_brk = heap;
 }
 
-// mem_sbrk - simple model of the sbrk function. Extends the heap by incr bytes
-// and returns the start address of the new area. In this model, the heap cannot
-// be shrunk.
 void *
-mem_sbrk(intptr_t incr)
+Heap_Sim_Sbrk(intptr_t incr)
 {
-    Char8 *old_brk = mem_brk;
+    U8 *old_brk = mem_brk;
 
     bool ok = true;
     if (incr < 0) {
         ok = false;
         fprintf(
             stderr,
-            "ERROR: mem_sbrk failed.  Attempt to expand heap by negative value %ld\n",
+            "ERROR: Heap_Sim_Sbrk failed.  Attempt to expand heap by negative value %ld\n",
             (long)incr);
     } else if (mem_brk + incr > mem_max_addr) {
         ok = false;
         long alloc = mem_brk - heap + incr;
         fprintf(
             stderr,
-            "ERROR: mem_sbrk failed. Ran out of memory.  Would require heap size of %zd (0x%zx) bytes\n",
+            "ERROR: Heap_Sim_Sbrk failed. Ran out of memory.  Would require heap size of %zd (0x%zx) bytes\n",
             alloc, alloc);
     }
     if (ok) {
@@ -80,30 +74,26 @@ mem_sbrk(intptr_t incr)
     }
 }
 
-// mem_heap_lo - return address of the first heap byte
 void *
-mem_heap_lo(void)
+Heap_Sim_Get_Low(void)
 {
     return (void *)heap;
 }
 
-// mem_heap_hi - return address of last heap byte
 void *
-mem_heap_hi(void)
+Heap_Sim_Get_High(void)
 {
     return (void *)(mem_brk - 1);
 }
 
-// mem_heapsize() - returns the heap size in bytes
 size_t
-mem_heapsize(void)
+Heap_Sim_Get_Heap_Size(void)
 {
     return (size_t)(mem_brk - heap);
 }
 
-// mem_pagesize() - returns the page size of the system
 size_t
-mem_pagesize(void)
+Heap_Sim_Get_Page_Size(void)
 {
     return (size_t)getpagesize();
 }

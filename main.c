@@ -24,12 +24,12 @@ static const Char8 *traces[] = {
     "traces/syn-string-short.rep", "traces/syn-struct.rep",
     "traces/syn-struct-short.rep",
 };
-
 #define NUM_TRACES (sizeof(traces) / sizeof(*traces))
+
 int
 main(void)
 {
-    mem_init();
+    Heap_Sim_Init();
 
     for (size_t i = 0; i < NUM_TRACES; i += 1) {
         String_View input = String_View_Read_File(traces[i]);
@@ -48,6 +48,6 @@ main(void)
         printf("\n");
     }
 
-    mem_deinit();
+    Heap_Sim_Release();
     return 0;
 }

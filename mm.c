@@ -41,7 +41,7 @@ static bool Heap_Check(size_t lineno);
 static bool
 in_heap(const void *p)
 {
-    return mem_heap_lo() <= p && p <= mem_heap_hi();
+    return Heap_Sim_Get_Low() <= p && p <= Heap_Sim_Get_High();
 }
 
 // Get the printable string representation of a boolean.
@@ -386,7 +386,7 @@ Heap_Grow(size_t size)
 {
     dbg_assert(size % 2 == 0);
 
-    Word *p = mem_sbrk(size * sizeof(Word));
+    Word *p = Heap_Sim_Sbrk(size * sizeof(Word));
     if (p == NULL) {
         return NULL;
     }
@@ -405,17 +405,17 @@ Heap_Grow(size_t size)
 
 // Initialize: returns false on error, true on success.
 bool
-mm_init(void)
+M_init(void)
 {
     // one word each for the special tags at start and end of the heap...
-    Word *heap_start = mem_sbrk(sizeof(Word) + sizeof(Word));
+    Word *heap_start = Heap_Sim_Sbrk(sizeof(Word) + sizeof(Word));
     if (heap_start == NULL) {
         return false;
     }
 
-    dbg_assert(mem_heap_lo() == heap_start);
+    dbg_assert(Heap_Sim_Get_Low() == heap_start);
 
-    // re-initialize the free_list_head to NULL in case mm_init() is called
+    // re-initialize the free_list_head to NULL in case M_init() is called
     // multiple times...
     memset(free_table, 0, sizeof(free_table));
 
@@ -439,7 +439,7 @@ mm_init(void)
 
 // malloc
 void *
-mm_malloc(const size_t size)
+M_malloc(const size_t size)
 {
     Heap_Check(__LINE__);
 
@@ -508,7 +508,7 @@ mm_malloc(const size_t size)
 
 // free
 void
-mm_free(void *ptr)
+M_free(void *ptr)
 {
     Heap_Check(__LINE__);
 
@@ -526,7 +526,7 @@ mm_free(void *ptr)
 
 // realloc
 void *
-mm_realloc(void *ptr, const size_t size)
+M_realloc(void *ptr, const size_t size)
 {
     Heap_Check(__LINE__);
 
@@ -538,7 +538,7 @@ mm_realloc(void *ptr, const size_t size)
 
     // if ptr is NULL then this is essentially just a call to malloc...
     if (!ptr) {
-        return mm_malloc(size);
+        return M_malloc(size);
     }
 
     const size_t aligned_size = Aligned_Word_Size(size);
@@ -565,13 +565,13 @@ mm_realloc(void *ptr, const size_t size)
     }
 
     // if nothing works, just do the dumb thing...
-    void *new = mm_malloc(size);
+    void *new = M_malloc(size);
     if (!new) {
         return NULL;
     }
 
     memcpy(new, ptr, old_size * sizeof(Word));
-    mm_free(ptr);
+    M_free(ptr);
 
     return new;
 }
@@ -615,7 +615,7 @@ static void
 Heap_Print(void)
 {
 #ifdef DEBUG // Heap_Print(...)
-    Word *words = mem_heap_lo();
+    Word *words = Heap_Sim_Get_Low();
 
     dbg_assert(words[0] == Tag_Pack(0, true, true, false));
 
@@ -705,7 +705,7 @@ Heap_Check(size_t lineno)
 
     size_t n_free2 = 0;
     Word *prev = NULL;
-    Word *block = (Word *)mem_heap_lo() + 1;
+    Word *block = (Word *)Heap_Sim_Get_Low() + 1;
     while (block != Block_Get_Next_Adj(block)) {
         if (Block_Get_Alloc(block) == false) {
             n_free2 += 1;
@@ -743,11 +743,11 @@ Heap_Check(size_t lineno)
     // check last byte of boundary tag is exactly at the end of the heap, this
     // should be enough to prove that all pointers before it are in the heap...
     const void *last_byte = (char *)block + 7;
-    if (last_byte != mem_heap_hi()) {
+    if (last_byte != Heap_Sim_Get_High()) {
         ret = false;
         dbg_printf("line %d: boundary tag is not exactly at the end "
                    "of the heap last byte is at %p but end of heap is at %p\n",
-                   lineno, last_byte, mem_heap_hi());
+                   lineno, last_byte, Heap_Sim_Get_High());
     }
 
     // check number of free blocks is consistent from free list and heap
