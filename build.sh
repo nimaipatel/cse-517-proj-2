@@ -12,7 +12,7 @@ DEV_FLAGS+=" -g3 -O0 -DDEBUG -D_GLIBC_DEBUG"
 
 RELEASE_FLAGS="-O3 -DNDEBUG"
 
-SRC="main.c mm.c memlib.c perf.c vec_u64.c"
+SRC="main.c mm.c memlib.c perf.c vec_u64.c string_view.c trace.c"
 
 if [ "$1" = "debug" ]; then
     $CC $FLAGS $DEV_FLAGS $SRC -o main

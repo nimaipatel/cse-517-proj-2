@@ -12,15 +12,15 @@
 #include "memlib.h"
 #include "defines.h"
 
-static U8 *heap;
-static U8 *mem_brk;
-static U8 *mem_max_addr;
+static Char8 *heap;
+static Char8 *mem_brk;
+static Char8 *mem_max_addr;
 
 // mem_init - initialize the memory system model
 void
 mem_init(void)
 {
-    U8 *addr = mmap(NULL, MAX_HEAP_SIZE, PROT_READ | PROT_WRITE,
+    Char8 *addr = mmap(NULL, MAX_HEAP_SIZE, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1,
                    0);
     if (addr == MAP_FAILED) {
@@ -55,7 +55,7 @@ mem_reset_brk(void)
 void *
 mem_sbrk(intptr_t incr)
 {
-    U8 *old_brk = mem_brk;
+    Char8 *old_brk = mem_brk;
 
     bool ok = true;
     if (incr < 0) {

@@ -8,6 +8,8 @@
 #include "perf.h"
 #include "vec_u64.h"
 #include "defines.h"
+#include "string_view.h"
+#include "trace.h"
 
 static const char *traces[] = {
     "traces/bdd-aa32.rep",         "traces/bdd-aa4.rep",
@@ -25,86 +27,6 @@ static const char *traces[] = {
 };
 
 #define NUM_TRACES (sizeof(traces) / sizeof(*traces))
-
-typedef struct Trace_Op {
-    enum { ALLOC, FREE, REALLOC } type;
-    size_t index;
-    size_t size;
-} Trace_Op;
-
-typedef struct Trace {
-    size_t num_ids;
-    size_t num_ops;
-    size_t data_bytes;
-    Trace_Op *ops;
-} Trace;
-
-static Trace
-Trace_Read(const char *filename)
-{
-    Trace trace = { 0 };
-
-    FILE *tracefile = fopen(filename, "r");
-    assert(tracefile && "Failed to open trace file");
-
-    size_t iweight;
-    fscanf(tracefile, "%zu", &iweight);
-    fscanf(tracefile, "%zu", &trace.num_ids);
-    fscanf(tracefile, "%zu", &trace.num_ops);
-    fscanf(tracefile, "%zu", &trace.data_bytes);
-
-    trace.ops = malloc(trace.num_ops * sizeof(trace.ops[0]));
-    assert(trace.ops && "Allocation Failure");
-
-    char type[1024];
-    size_t op_index = 0;
-    size_t max_id = 0;
-    while (fscanf(tracefile, "%s", type) != EOF) {
-        switch (type[0]) {
-        case 'a': {
-            size_t id;
-            size_t alloc_size;
-            fscanf(tracefile, "%zu %lu", &id, &alloc_size);
-            trace.ops[op_index] = (Trace_Op){ ALLOC, id, alloc_size };
-            max_id = MAX(id, max_id);
-            break;
-        }
-
-        case 'r': {
-            size_t id;
-            size_t alloc_size;
-            fscanf(tracefile, "%zu %lu", &id, &alloc_size);
-            trace.ops[op_index] = (Trace_Op){ REALLOC, id, alloc_size };
-            max_id = MAX(id, max_id);
-            break;
-        }
-
-        case 'f': {
-            size_t id;
-            fscanf(tracefile, "%zu", &id);
-            trace.ops[op_index] = (Trace_Op){ FREE, id, 0 };
-            max_id = MAX(id, max_id);
-            break;
-        }
-
-        default: {
-            assert(false && "Unknown trace operation");
-        }
-        }
-
-        op_index += 1;
-        if (op_index == trace.num_ops) {
-            break;
-        }
-    }
-
-    fclose(tracefile);
-    assert(max_id == trace.num_ids - 1);
-    assert(trace.num_ops == op_index);
-
-    return trace;
-}
-
 struct Trace_Run_Result {
     Vec_U64 malloc_inst;
     Vec_U64 realloc_inst;
@@ -183,7 +105,8 @@ main(void)
     mem_init();
 
     for (size_t i = 0; i < NUM_TRACES; i += 1) {
-        Trace trace = Trace_Read(traces[i]);
+        String_View input = String_View_Read_File(traces[i]);
+        Trace trace = Trace_Parse(input);
         struct Trace_Run_Result result = Trace_Run(trace);
         Vec_U64_Stats_Result malloc_stats = Vec_U64_Stats(result.malloc_inst);
         Vec_U64_Stats_Result realloc_stats = Vec_U64_Stats(result.realloc_inst);

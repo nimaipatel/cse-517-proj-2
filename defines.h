@@ -1,6 +1,9 @@
+#ifndef _DEFINES_H
+#define _DEFINES_H
+
 #include <stddef.h>
 
-typedef unsigned char U8;
+typedef char Char8;
 typedef unsigned short U16;
 typedef unsigned int U32;
 typedef unsigned long long U64;
@@ -9,3 +12,5 @@ static_assert(sizeof(void *) == sizeof(Word), "");
 static_assert(sizeof(size_t) == sizeof(Word), "");
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+#endif // _DEFINES_H
