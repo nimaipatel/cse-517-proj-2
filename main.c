@@ -9,20 +9,24 @@
 #include "trace.h"
 
 static const Char8 *traces[] = {
-    // These are traces from CMU malloc lab, used in this project with
-    // permission from professor Randy Bryant and Professor David O'Hallaron
+    /* These are traces from CMU malloc lab, used in this project with
+       permission from professor Randy Bryant and Professor David O'Hallaron */
     "traces/bdd-aa32.rep",         "traces/bdd-aa4.rep",
     "traces/bdd-ma4.rep",          "traces/bdd-nq7.rep",
-    "traces/cbit-abs.rep",         "traces/cbit-parity.rep",
-    "traces/cbit-satadd.rep",      "traces/cbit-xyz.rep",
-    "traces/ngram-fox1.rep",       "traces/ngram-gulliver1.rep",
-    "traces/ngram-gulliver2.rep",  "traces/ngram-moby1.rep",
-    "traces/ngram-shake1.rep",     "traces/syn-array.rep",
-    "traces/syn-array-short.rep",  "traces/syn-largemem-short.rep",
-    "traces/syn-mix-realloc.rep",  "traces/syn-mix.rep",
-    "traces/syn-mix-short.rep",    "traces/syn-string.rep",
-    "traces/syn-string-short.rep", "traces/syn-struct.rep",
-    "traces/syn-struct-short.rep",
+    // "traces/cbit-abs.rep",         "traces/cbit-parity.rep",
+    // "traces/cbit-satadd.rep",      "traces/cbit-xyz.rep",
+    // "traces/ngram-fox1.rep",       "traces/ngram-gulliver1.rep",
+    // "traces/ngram-gulliver2.rep",  "traces/ngram-moby1.rep",
+    // "traces/ngram-shake1.rep",     "traces/syn-array.rep",
+    // "traces/syn-array-short.rep",  "traces/syn-largemem-short.rep",
+    // "traces/syn-mix-realloc.rep",  "traces/syn-mix.rep",
+    // "traces/syn-mix-short.rep",    "traces/syn-string.rep",
+    // "traces/syn-string-short.rep", "traces/syn-struct.rep",
+    // "traces/syn-struct-short.rep",
+
+    /* trace for lox interpreter from https://github.com/munificent/craftinginterpreters/ */
+    // running test/benchmark/trees.lox
+    // "traces/clox-trees-lox.rep"
 };
 #define NUM_TRACES (sizeof(traces) / sizeof(*traces))
 
