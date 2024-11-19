@@ -20,17 +20,16 @@ Trace_Run(Trace trace, U64 perf_type, U64 perf_config)
         exit(1);
     }
 
-    void **alloc_ptrs = malloc(trace.num_ids * sizeof(*alloc_ptrs));
-    if (alloc_ptrs == NULL) {
+    void **alloc_ptrs;
+    size_t *alloc_sizes;
+    U8 *_ = malloc(trace.num_ids * sizeof(*alloc_ptrs) +
+                   trace.num_ids * sizeof(*alloc_sizes));
+    if (!_) {
         fprintf(stderr, "malloc failed\n");
         exit(1);
     }
-
-    size_t *alloc_sizes = malloc(trace.num_ids * sizeof(*alloc_sizes));
-    if (alloc_sizes == NULL) {
-        fprintf(stderr, "malloc failed\n");
-        exit(1);
-    }
+    alloc_ptrs = (void **)_;
+    alloc_sizes = (size_t *)(_ + trace.num_ids * sizeof(*alloc_ptrs));
 
     Vec_U64 malloc_cyc = { 0 };
     Vec_U64 realloc_cyc = { 0 };
@@ -90,8 +89,7 @@ Trace_Run(Trace trace, U64 perf_type, U64 perf_config)
 
     assert(malloc_cyc.len + realloc_cyc.len + free_cyc.len == trace.num_ops);
 
-    free(alloc_ptrs);
-    free(alloc_sizes);
+    free(_);
 
     return (Trace_Run_Result){
         .malloc_cyc = malloc_cyc,
