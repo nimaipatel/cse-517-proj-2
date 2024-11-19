@@ -31,6 +31,12 @@ main(void)
 {
     Heap_Sim_Init();
 
+    Vec_U64 malloc_cyc = { 0 };
+    Vec_U64 realloc_cyc = { 0 };
+    Vec_U64 free_cyc = { 0 };
+
+    double util_sum = 0;
+
     for (size_t i = 0; i < NUM_TRACES; i += 1) {
         String input = String_Read_File(traces[i]);
         Trace trace = Trace_Parse(String_Slice(input, 0, input.len));
@@ -39,7 +45,8 @@ main(void)
 
         printf("Trace: %s\n", traces[i]);
 
-        Vec_U64_Stats_Result stats = Vec_U64_Stats(result.malloc_cyc);
+        Vec_U64_Stats_Result stats;
+        stats = Vec_U64_Stats(result.malloc_cyc);
         printf("malloc:  %f ± %f\n", stats.mean, stats.margin_of_error);
 
         stats = Vec_U64_Stats(result.realloc_cyc);
@@ -48,17 +55,58 @@ main(void)
         stats = Vec_U64_Stats(result.free_cyc);
         printf("free:    %f ± %f\n", stats.mean, stats.margin_of_error);
 
+        Vec_U64 overall = { 0 };
+        Vec_U64_Append(&overall, result.malloc_cyc, result.realloc_cyc, result.free_cyc);
+
+        stats = Vec_U64_Stats(overall);
+        printf("overall: %f ± %f\n", stats.mean, stats.margin_of_error);
+
         printf("util:    %f\n", result.util);
+        util_sum += result.util;
 
         printf("\n");
 
-        Vec_U64_Free(result.malloc_cyc);
-        Vec_U64_Free(result.realloc_cyc);
-        Vec_U64_Free(result.free_cyc);
+        Vec_U64_Append(&malloc_cyc, result.malloc_cyc);
+        Vec_U64_Append(&realloc_cyc, result.realloc_cyc);
+        Vec_U64_Append(&free_cyc, result.free_cyc);
+
+        // loop_clean_up
+        Vec_U64_Release(result.malloc_cyc);
+        Vec_U64_Release(result.realloc_cyc);
+        Vec_U64_Release(result.free_cyc);
+        Vec_U64_Release(overall);
 
         Trace_Release(trace);
         String_Release(input);
     }
+
+    Vec_U64 overall = { 0 };
+    Vec_U64_Append(&overall, malloc_cyc, realloc_cyc, free_cyc);
+
+    printf("All traces:\n");
+
+    printf("malloc:  ");
+    Vec_U64_Stats_Result stats = Vec_U64_Stats(malloc_cyc);
+    printf("%f ± %f\n", stats.mean, stats.margin_of_error);
+
+    printf("realloc: ");
+    stats = Vec_U64_Stats(realloc_cyc);
+    printf("%f ± %f\n", stats.mean, stats.margin_of_error);
+
+    printf("free:    ");
+    stats = Vec_U64_Stats(free_cyc);
+    printf("%f ± %f\n", stats.mean, stats.margin_of_error);
+
+    printf("overall: ");
+    stats = Vec_U64_Stats(overall);
+    printf("%f ± %f\n", stats.mean, stats.margin_of_error);
+
+    printf("util:    %f\n", util_sum / NUM_TRACES);
+
+    Vec_U64_Release(malloc_cyc);
+    Vec_U64_Release(realloc_cyc);
+    Vec_U64_Release(free_cyc);
+    Vec_U64_Release(overall);
 
     Heap_Sim_Release();
     return 0;

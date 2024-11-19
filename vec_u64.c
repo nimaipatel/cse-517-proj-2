@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdarg.h>
 
 #include "vec_u64.h"
 #include "defines.h"
@@ -18,7 +19,42 @@ Vec_U64_Push(Vec_U64 *vec, uint64_t val)
 }
 
 void
-Vec_U64_Free(Vec_U64 vec)
+Vec_U64_Reserve(Vec_U64 *vec, size_t cap)
+{
+    vec->cap = MAX(vec->cap, cap);
+    vec->data = realloc(vec->data, vec->cap * sizeof(*vec->data));
+}
+
+void
+__Vec_U64_Append(Vec_U64 *vec, size_t num_others, ...)
+{
+    size_t new_len = vec->len;
+
+    va_list args;
+    va_start(args, num_others);
+
+    for (size_t i = 0; i < num_others; i++) {
+        Vec_U64 other = va_arg(args, Vec_U64);
+        new_len += other.len;
+    }
+
+    va_end(args);
+
+    Vec_U64_Reserve(vec, new_len);
+
+    va_start(args, num_others);
+    for (size_t i = 0; i < num_others; i++) {
+        Vec_U64 other = va_arg(args, Vec_U64);
+        for (size_t j = 0; j < other.len; j++) {
+            vec->data[vec->len++] = other.data[j];
+        }
+    }
+
+    va_end(args);
+}
+
+void
+Vec_U64_Release(Vec_U64 vec)
 {
     free(vec.data);
 }
