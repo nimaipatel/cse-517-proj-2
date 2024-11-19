@@ -6,6 +6,8 @@ CC="gcc"
 
 FLAGS="-std=gnu11 -lm"
 
+# FLAGS+=" -DDISABLE_MINI_BLOCK_OPTIMIZATION"
+
 DEV_FLAGS="-Wall -Wextra -Wpedantic -Werror"
 DEV_FLAGS+=" -Wdouble-promotion -Wno-unused-parameter -Wno-unused-function"
 DEV_FLAGS+=" -g3 -O0 -DDEBUG -D_GLIBC_DEBUG"
