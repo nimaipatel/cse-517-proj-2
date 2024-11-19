@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "defines.h"
-#include "string_view.h"
+#include "string.h"
 
 String
 String_Read_File(const Char8 *path)

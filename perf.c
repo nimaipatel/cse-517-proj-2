@@ -10,6 +10,7 @@
 #include <sys/types.h>
 
 #include "perf.h"
+#include "defines.h"
 
 static long
 Perf_Event_Open(struct perf_event_attr *hw_event, pid_t pid, int cpu,
@@ -19,7 +20,7 @@ Perf_Event_Open(struct perf_event_attr *hw_event, pid_t pid, int cpu,
 }
 
 int
-Perf_Start(const uint64_t type, const uint64_t config)
+Perf_Start(const U64 type, const U64 config)
 {
     struct perf_event_attr pe = {
         .type = type,
@@ -42,12 +43,12 @@ Perf_Start(const uint64_t type, const uint64_t config)
     return fd;
 }
 
-uint64_t
+U64
 Perf_Stop(int fd)
 {
     ioctl(fd, PERF_EVENT_IOC_DISABLE, 0);
-    uint64_t count;
-    read(fd, &count, sizeof(uint64_t));
+    U64 count;
+    read(fd, &count, sizeof(count));
     close(fd);
     return count;
 }

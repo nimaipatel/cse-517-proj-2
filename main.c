@@ -4,7 +4,7 @@
 #include <linux/perf_event.h>
 
 #include "memlib.h"
-#include "string_view.h"
+#include "string.h"
 #include "trace_parser.h"
 #include "trace.h"
 
@@ -35,20 +35,28 @@ main(void)
         String input = String_Read_File(traces[i]);
         Trace trace = Trace_Parse(String_Slice(input, 0, input.len));
 
-        Trace_Run_Result result = Trace_Run(trace);
-        Vec_U64_Stats_Result malloc_stats = Vec_U64_Stats(result.malloc_inst);
-        Vec_U64_Stats_Result realloc_stats = Vec_U64_Stats(result.realloc_inst);
-        Vec_U64_Stats_Result free_stats = Vec_U64_Stats(result.free_inst);
+        Trace_Run_Result result = Trace_Run(trace, PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
 
-        printf("%s:\n", traces[i]);
-        printf("malloc: %f ± %f\n", malloc_stats.mean,
-               malloc_stats.margin_of_error);
-        printf("realloc: %f ± %f\n", realloc_stats.mean,
-               realloc_stats.margin_of_error);
-        printf("free: %f ± %f\n", free_stats.mean, free_stats.margin_of_error);
-        printf("util: %f\n", result.util);
+        printf("Trace: %s\n", traces[i]);
+
+        Vec_U64_Stats_Result stats = Vec_U64_Stats(result.malloc_cyc);
+        printf("malloc:  %f ± %f\n", stats.mean, stats.margin_of_error);
+
+        stats = Vec_U64_Stats(result.realloc_cyc);
+        printf("realloc: %f ± %f\n", stats.mean, stats.margin_of_error);
+
+        stats = Vec_U64_Stats(result.free_cyc);
+        printf("free:    %f ± %f\n", stats.mean, stats.margin_of_error);
+
+        printf("util:    %f\n", result.util);
+
         printf("\n");
 
+        Vec_U64_Free(result.malloc_cyc);
+        Vec_U64_Free(result.realloc_cyc);
+        Vec_U64_Free(result.free_cyc);
+
+        Trace_Release(trace);
         String_Release(input);
     }
 

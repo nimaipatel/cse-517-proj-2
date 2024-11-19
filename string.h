@@ -1,5 +1,5 @@
-#ifndef _STRING_VIEW_H
-#define _STRING_VIEW_H
+#ifndef _STRING_BETTER_H
+#define _STRING_BETTER_H
 
 #include "defines.h"
 
@@ -19,4 +19,4 @@ String_View String_Slice(String, size_t start, size_t len);
 String_View String_View_From_Cstr(const Char8 *);
 void String_Release(String);
 
-#endif // _STRING_VIEW_H
+#endif // _STRING_BETTER_H

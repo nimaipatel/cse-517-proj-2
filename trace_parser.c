@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 #include "defines.h"
-#include "string_view.h"
+#include "string.h"
 #include "trace_parser.h"
 
 static Char8
@@ -140,4 +140,10 @@ Trace_Parse(String_View input)
     assert(op_index == num_ops);
 
     return (Trace){ num_ids, num_ops, data_bytes, ops };
+}
+
+void
+Trace_Release(Trace trace)
+{
+    free(trace.ops);
 }

@@ -18,9 +18,9 @@ Vec_U64_Push(Vec_U64 *vec, uint64_t val)
 }
 
 void
-Vec_U64_Free(Vec_U64 *vec)
+Vec_U64_Free(Vec_U64 vec)
 {
-    free(vec->data);
+    free(vec.data);
 }
 
 Vec_U64_Stats_Result
@@ -49,6 +49,7 @@ Vec_U64_Stats(Vec_U64 vec)
     double margin_of_error = zstar * stddev / sqrt(vec.len);
 
     return (Vec_U64_Stats_Result){
+        .sum = sum,
         .mean = mean,
         .variance = variance,
         .stddev = stddev,
