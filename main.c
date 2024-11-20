@@ -9,8 +9,9 @@
 #include "trace.h"
 
 static const Char8 *traces[] = {
-    /* These are traces from CMU malloc lab, used in this project with
-       permission from professor Randy Bryant and Professor David O'Hallaron */
+    // These are traces from CMU malloc lab, used in this project with
+    // permission from professor Randy Bryant and Professor David O'Hallaron
+
     // "traces/bdd-aa32.rep",         "traces/bdd-aa4.rep",
     // "traces/bdd-ma4.rep",          "traces/bdd-nq7.rep",
     // "traces/cbit-abs.rep",         "traces/cbit-parity.rep",
@@ -24,9 +25,10 @@ static const Char8 *traces[] = {
     // "traces/syn-string-short.rep", "traces/syn-struct.rep",
     // "traces/syn-struct-short.rep",
 
-    /* trace for lox interpreter from
-       https://github.com/munificent/craftinginterpreters/ running
-       test/benchmark/trees.lox */
+    // trace for lox interpreter from
+    // https://github.com/munificent/craftinginterpreters/ running
+    // test/benchmark/trees.lox refer readme.txt to see how to run generate
+    // trace for your own program
     "traces/clox-trees-lox.rep"
 };
 #define NUM_TRACES (sizeof(traces) / sizeof(*traces))
@@ -46,7 +48,8 @@ main(void)
         String input = String_Read_File(traces[i]);
         Trace trace = Trace_Parse(String_Slice(input, 0, input.len));
 
-        Trace_Run_Result result = Trace_Run(trace, PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
+        Trace_Run_Result result =
+            Trace_Run(trace, PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
 
         printf("Trace: %s\n", traces[i]);
 
@@ -61,7 +64,8 @@ main(void)
         printf("free:    %f ± %f\n", stats.mean, stats.margin_of_error);
 
         Vec_U64 overall = { 0 };
-        Vec_U64_Append(&overall, result.malloc_cyc, result.realloc_cyc, result.free_cyc);
+        Vec_U64_Append(&overall, result.malloc_cyc, result.realloc_cyc,
+                       result.free_cyc);
 
         stats = Vec_U64_Stats(overall);
         printf("overall: %f ± %f\n", stats.mean, stats.margin_of_error);
