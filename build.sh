@@ -8,7 +8,7 @@ FLAGS="-std=gnu11 -lm"
 FLAGS+=" -Wall -Wextra -Wpedantic -Werror"
 FLAGS+=" -Wdouble-promotion -Wno-unused-variable -Wno-unused-parameter -Wno-unused-function"
 
-FLAGS+=" -DMINI_BLOCK_OPTIMIZATION=0"
+FLAGS+=" -DMINI_BLOCK_OPTIMIZATION"
 
 DEV_FLAGS="-g3 -O0 -DDEBUG -D_GLIBC_DEBUG"
 

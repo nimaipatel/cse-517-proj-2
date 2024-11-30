@@ -10,10 +10,6 @@
 #include "memlib.h"
 #include "defines.h"
 
-#ifndef MINI_BLOCK_OPTIMIZATION
-#error "MINI_BLOCK_OPTIMIZATION must be 1 or 0"
-#endif // MINI_BLOCK_OPTIMIZATION
-
 #ifdef DEBUG
 #define dbg_printf(...) printf(__VA_ARGS__)
 #define dbg_assert(...) assert(__VA_ARGS__)
@@ -68,7 +64,7 @@ align(const size_t x)
 static inline size_t
 Aligned_Word_Size(const size_t size_bytes)
 {
-#if MINI_BLOCK_OPTIMIZATION == 1
+#ifdef MINI_BLOCK_OPTIMIZATION
     return MAX(align(size_bytes + sizeof(Word)) / sizeof(Word),
                       MIN_BLOCK_SIZE);
 #else
@@ -363,7 +359,7 @@ Block_Alloc(Word *block, const size_t block_size, const size_t alloc_size)
     const bool prev_alloc = Block_Get_Prev_Alloc(block);
     const bool prev_min = Block_Get_Prev_Min(block);
 
-#if MINI_BLOCK_OPTIMIZATION == 1
+#ifdef MINI_BLOCK_OPTIMIZATION
     if (block_size - alloc_size < MIN_BLOCK_SIZE) {
 #else
     if (block_size - alloc_size < MIN_BLOCK_SIZE + 2) {
