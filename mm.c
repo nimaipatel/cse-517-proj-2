@@ -51,18 +51,6 @@ Bool_Str(const bool b)
     return b ? "true" : "false";
 }
 
-static inline size_t
-max_size_t(const size_t a, const size_t b)
-{
-    return a > b ? a : b;
-}
-
-static inline size_t
-min_size_t(const size_t a, const size_t b)
-{
-    return a < b ? a : b;
-}
-
 // Rounds up to the nearest multiple of ALIGNMENT.
 static inline size_t
 align(const size_t x)
@@ -76,13 +64,13 @@ align(const size_t x)
 static inline size_t
 Aligned_Word_Size(const size_t size_bytes)
 {
-#ifdef DISABLE_MINI_BLOCK_OPTIMIZATION
-    return max_size_t(align(size_bytes + sizeof(Word)) / sizeof(Word),
-                      MIN_BLOCK_SIZE + 2);
-#else
-    return max_size_t(align(size_bytes + sizeof(Word)) / sizeof(Word),
+#ifdef ENABLE_MINI_BLOCK_OPTIMIZATION
+    return MAX(align(size_bytes + sizeof(Word)) / sizeof(Word),
                       MIN_BLOCK_SIZE);
-#endif // DISABLE_MINI_BLOCK_OPTIMIZATION
+#else
+    return MAX(align(size_bytes + sizeof(Word)) / sizeof(Word),
+                      MIN_BLOCK_SIZE + 2);
+#endif // ENABLE_MINI_BLOCK_OPTIMIZATION
 }
 
 // Takes block_size and returns index of the free list bin it should be or is
@@ -97,7 +85,7 @@ Size_Get_Bin_Index(size_t block_size)
 
     // index             0,     1,     2,     3, ...,
     // block size    4+2*0, 4+2*1, 4+2*2, 4+2*3, ...,
-    return min_size_t((block_size - MIN_BLOCK_SIZE) / 2, FREE_TABLE_SIZE - 1);
+    return MIN((block_size - MIN_BLOCK_SIZE) / 2, FREE_TABLE_SIZE - 1);
 }
 
 // Make tag from metadata.
@@ -277,7 +265,7 @@ Block_Unlink_Free_List(const Word *block)
 // through Block_Coalesce(...), unless we know that the prev and next
 // blocks are not free, for example during initialization of the heap.
 static void
-Block_Prepend_Free_List(Word *block)
+Block_Add_To_Free_List(Word *block)
 {
     // TODO: refactor this into a function...
     const size_t block_size = Block_Get_Size(block);
@@ -343,7 +331,7 @@ Block_Coalesce(Word *block)
     block[0] = tag;
     block[size - 1] = tag;
 
-    Block_Prepend_Free_List(block);
+    Block_Add_To_Free_List(block);
 
     Block_Inform_Next(block);
 
@@ -371,11 +359,11 @@ Block_Alloc(Word *block, const size_t block_size, const size_t alloc_size)
     const bool prev_alloc = Block_Get_Prev_Alloc(block);
     const bool prev_min = Block_Get_Prev_Min(block);
 
-#ifdef DISABLE_MINI_BLOCK_OPTIMIZATION
-    if (block_size - alloc_size < MIN_BLOCK_SIZE + 2) {
-#else
+#ifdef ENABLE_MINI_BLOCK_OPTIMIZATION
     if (block_size - alloc_size < MIN_BLOCK_SIZE) {
-#endif // DISABLE_MINI_BLOCK_OPTIMIZATION
+#else
+    if (block_size - alloc_size < MIN_BLOCK_SIZE + 2) {
+#endif // ENABLE_MINI_BLOCK_OPTIMIZATION
         const Word tag = Tag_Pack(block_size, true, prev_alloc, prev_min);
         block[0] = tag;
         Block_Inform_Next(block);
