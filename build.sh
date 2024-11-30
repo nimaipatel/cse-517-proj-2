@@ -5,12 +5,12 @@ set -xe
 CC="gcc"
 
 FLAGS="-std=gnu11 -lm"
+FLAGS+=" -Wall -Wextra -Wpedantic -Werror"
+FLAGS+=" -Wdouble-promotion -Wno-unused-variable -Wno-unused-parameter -Wno-unused-function"
 
 # FLAGS+=" -DDISABLE_MINI_BLOCK_OPTIMIZATION"
 
-DEV_FLAGS="-Wall -Wextra -Wpedantic -Werror"
-DEV_FLAGS+=" -Wdouble-promotion -Wno-unused-parameter -Wno-unused-function"
-DEV_FLAGS+=" -g3 -O0 -DDEBUG -D_GLIBC_DEBUG"
+DEV_FLAGS="-g3 -O0 -DDEBUG -D_GLIBC_DEBUG"
 
 RELEASE_FLAGS="-O3 -DNDEBUG"
 
