@@ -65,11 +65,9 @@ static inline size_t
 Aligned_Word_Size(const size_t size_bytes)
 {
 #ifdef MINI_BLOCK_OPTIMIZATION
-    return MAX(align(size_bytes + sizeof(Word)) / sizeof(Word),
-                      MIN_BLOCK_SIZE);
+    return MAX(align(size_bytes + sizeof(Word)) / sizeof(Word), MIN_BLOCK_SIZE);
 #else
-    return MAX(align(size_bytes + sizeof(Word)) / sizeof(Word),
-                      MIN_BLOCK_SIZE + 2);
+    return MAX(align(size_bytes + sizeof(Word)) / sizeof(Word), MIN_BLOCK_SIZE + 2);
 #endif // MINI_BLOCK_OPTIMIZATION
 }
 
@@ -78,6 +76,7 @@ Aligned_Word_Size(const size_t size_bytes)
 size_t
 Size_Get_Bin_Index(size_t block_size)
 {
+    return 0;
     dbg_assert(block_size % 2 == 0);
     dbg_assert(block_size >= MIN_BLOCK_SIZE);
     // TODO: better algorithm for bin sizes, currently using linearly
@@ -90,15 +89,13 @@ Size_Get_Bin_Index(size_t block_size)
 
 // Make tag from metadata.
 static inline Word
-Tag_Pack(const size_t size, const bool alloc, const bool prev_alloc,
-         const bool prev_min)
+Tag_Pack(const size_t size, const bool alloc, const bool prev_alloc, const bool prev_min)
 {
     // TODO: footers only need to store size with with the footer optimization now
     // check the size can fit in the number of bits we have available...
     dbg_assert(size < ((size_t)1 << (WORD_SIZE_BITS - 3)) - 1);
 
-    return (size << 3 | (Word)alloc << 2 | (Word)prev_alloc << 1 |
-            (Word)prev_min);
+    return (size << 3 | (Word)alloc << 2 | (Word)prev_alloc << 1 | (Word)prev_min);
 }
 
 // Get size of block from a tag.
@@ -203,8 +200,7 @@ Block_Get_Prev_Adj(Word *block)
 {
     dbg_assert(Block_Get_Prev_Alloc(block) == false);
 
-    const size_t prev_size =
-        Block_Get_Prev_Min(block) ? MIN_BLOCK_SIZE : Tag_Get_Size(block[-1]);
+    const size_t prev_size = Block_Get_Prev_Min(block) ? MIN_BLOCK_SIZE : Tag_Get_Size(block[-1]);
     return block - prev_size;
 }
 
@@ -272,6 +268,29 @@ Block_Insert_Free_List(Word *block)
     const size_t bin_index = Size_Get_Bin_Index(block_size);
     Word **head = &free_table[bin_index];
 
+#ifdef ADDRESS_ORDERED_FREE_LIST
+    Word *prev = NULL;
+    Word *curr = *head;
+    while (curr && curr < block) {
+        prev = curr;
+        curr = Block_Get_Next_Free(curr);
+    }
+
+    if (prev) {
+        Block_Set_Next_Free(prev, block);
+    } else {
+        *head = block;
+    }
+
+    Block_Set_Next_Free(block, curr);
+    if (Block_Get_Size(block) != MIN_BLOCK_SIZE) {
+        Block_Set_Prev_Free(block, prev);
+    }
+
+    if (curr && Block_Get_Size(curr) != MIN_BLOCK_SIZE) {
+        Block_Set_Prev_Free(curr, block);
+    }
+#else
     if (Block_Get_Size(block) != MIN_BLOCK_SIZE) {
         Block_Set_Prev_Free(block, NULL);
     }
@@ -282,6 +301,7 @@ Block_Insert_Free_List(Word *block)
     }
 
     *head = block;
+#endif // ADDRESS_ORDERED_FREE_LIST
 }
 
 // Refreshes next blocks knowledge of previous block's state.
@@ -340,8 +360,7 @@ Block_Coalesce(Word *block)
 
 // Marks the block as free, coalesces and adds to the free list.
 static inline Word *
-Block_Free(Word *block, const size_t size, const bool prev_alloc,
-           const bool prev_min)
+Block_Free(Word *block, const size_t size, const bool prev_alloc, const bool prev_min)
 {
     const Word tag = Tag_Pack(size, false, prev_alloc, prev_min);
     block[0] = tag;
@@ -371,8 +390,7 @@ Block_Alloc(Word *block, const size_t block_size, const size_t alloc_size)
         const Word tag = Tag_Pack(alloc_size, true, prev_alloc, prev_min);
         block[0] = tag;
         Word *next = Block_Get_Next_Adj(block);
-        Block_Free(next, block_size - alloc_size, true,
-                   (alloc_size == MIN_BLOCK_SIZE));
+        Block_Free(next, block_size - alloc_size, true, (alloc_size == MIN_BLOCK_SIZE));
     }
 }
 
@@ -394,8 +412,7 @@ Heap_Grow(size_t size)
 
     // set header and footer of new free block...
     Word *block = p - 1;
-    block = Block_Free(block, size, Block_Get_Prev_Alloc(block),
-                       Block_Get_Prev_Min(block));
+    block = Block_Free(block, size, Block_Get_Prev_Alloc(block), Block_Get_Prev_Min(block));
 
     return block;
 }
@@ -471,8 +488,7 @@ M_malloc(const size_t size)
     Word *best_block = block;
 
     // keep searching for a better fit in the same free list up to a limit...
-    while (block && Block_Get_Size(block) != aligned_size &&
-           counter < BEST_FIT_SEARCH_LIMIT) {
+    while (block && Block_Get_Size(block) != aligned_size && counter < BEST_FIT_SEARCH_LIMIT) {
         dbg_assert(Block_Get_Alloc(block) == false);
 
         counter += 1;
@@ -517,8 +533,7 @@ M_free(void *ptr)
     Word *block = (Word *)ptr - 1;
 
     // mark block as free and inform next adjacent block...
-    Block_Free(block, Block_Get_Size(block), Block_Get_Prev_Alloc(block),
-               Block_Get_Prev_Min(block));
+    Block_Free(block, Block_Get_Size(block), Block_Get_Prev_Alloc(block), Block_Get_Prev_Min(block));
 }
 
 // realloc
@@ -589,8 +604,7 @@ Block_Print(Word *block)
 {
     if (!block) {
         const char *fmt = "%-18s %-18s %-18s %-10s %-10s %-10s\n";
-        dbg_printf(fmt, "address", "word", "size", "alloc", "prev_alloc",
-                   "prev_min");
+        dbg_printf(fmt, "address", "word", "size", "alloc", "prev_alloc", "prev_min");
         return;
     }
 
@@ -601,8 +615,7 @@ Block_Print(Word *block)
     const bool prev_min = Block_Get_Prev_Min(block);
 
     const char *fmt = "0x%016lx 0x%016lx 0x%016lx %-10s %-10s %-10s\n";
-    dbg_printf(fmt, word, *word, size, Bool_Str(alloc), Bool_Str(prev_alloc),
-               Bool_Str(prev_min));
+    dbg_printf(fmt, word, *word, size, Bool_Str(alloc), Bool_Str(prev_alloc), Bool_Str(prev_min));
 }
 #endif // Block_Print(...)
 
@@ -681,18 +694,14 @@ Heap_Check(size_t lineno)
             }
 
             // check prev and next pointers are consistent...
-            if (Block_Get_Size(block) > MIN_BLOCK_SIZE &&
-                Block_Get_Prev_Free(block) != prev) {
+            if (Block_Get_Size(block) > MIN_BLOCK_SIZE && Block_Get_Prev_Free(block) != prev) {
                 ret = false;
-                dbg_printf(
-                    "line %d: inconsistent prev pointer for block at %p\n",
-                    lineno, block);
+                dbg_printf("line %d: inconsistent prev pointer for block at %p\n", lineno, block);
             }
 
             if (Size_Get_Bin_Index(Block_Get_Size(block)) != i) {
                 ret = false;
-                dbg_printf("line %d: %p has size %ld but is in bin %ld\n",
-                           lineno, block, Block_Get_Size(block), i);
+                dbg_printf("line %d: %p has size %ld but is in bin %ld\n", lineno, block, Block_Get_Size(block), i);
             }
 
             prev = block;
@@ -725,12 +734,10 @@ Heap_Check(size_t lineno)
             }
         }
 
-        if (prev && Block_Get_Prev_Min(block) !=
-                        (Block_Get_Size(prev) == MIN_BLOCK_SIZE)) {
+        if (prev && Block_Get_Prev_Min(block) != (Block_Get_Size(prev) == MIN_BLOCK_SIZE)) {
             ret = false;
-            dbg_printf(
-                "line %d: block %p has prev_min set to %d but size of previous block is %ld\n",
-                lineno, block, Block_Get_Prev_Min(block), Block_Get_Size(prev));
+            dbg_printf("line %d: block %p has prev_min set to %d but size of previous block is %ld\n", lineno, block,
+                       Block_Get_Prev_Min(block), Block_Get_Size(prev));
         }
 
         prev = block;
