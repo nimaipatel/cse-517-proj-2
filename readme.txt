@@ -1,7 +1,19 @@
-GENERATING TRACES FOR CUSTOM PROGRAMS
-=====================================
 
-First add mtrace call to the start of the main function of the program you want
+OVERVIEW
+========
+
+This project reports performance results for a generic heap allocator by running
+it on traces from different programs. You can find the traces in the ./traces
+folder, and can register them in the traces[] array inside main.c.
+
+Refer to next sections to learn how to generate traces for your own programs and
+run them.
+
+
+GENERATING TRACES FOR YOUR OWN PROGRAMS
+=======================================
+
+First add an mtrace call to the start of the main function of the program you want
 to trace.
 
 ```

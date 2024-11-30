@@ -10,7 +10,7 @@ FLAGS+=" -Wdouble-promotion -Wno-unused-variable -Wno-unused-parameter -Wno-unus
 
 FLAGS+=" -DMINI_BLOCK_OPTIMIZATION"
 
-FLAGS+=" -DADDRESS_ORDERED_FREE_LIST"
+# FLAGS+=" -DADDRESS_ORDERED_FREE_LIST"
 
 DEV_FLAGS="-g3 -O0 -DDEBUG -D_GLIBC_DEBUG"
 
