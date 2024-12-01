@@ -12,6 +12,11 @@ bool M_Init(void);
 
 #define MIN_BLOCK_SIZE 2
 
+size_t Linear_Binning(size_t block_size);
+size_t Exponential_Binning(size_t block_size);
+size_t Hybrid_Binning(size_t block_size);
+size_t Range_Binning(size_t block_size);
+
 // use for defining FREE_LIST_INSERT_STRATEGY compile time value...
 #define FILO 0
 #define ADDRESS_ORDERED 1

@@ -22,7 +22,9 @@ In this experiment we explore:
 4) Different insertion strategies for the lists of free blocks.
 
 
-```
+``` config.h
+#include "mm.h"
+
 // possible values: integer, 0 = first-fit
 #define BEST_FIT_SEARCH_LIMIT 0x10
 
@@ -32,18 +34,15 @@ In this experiment we explore:
 // possible values: ADDRESS_ORDERED, FILO
 #define FREE_LIST_INSERT_STRATEGY FILO
 
-// define a free table and then define the binning strategy in Size_Get_Bin_Index(...)
+// define a free table size and then define the binning strategy in
+// Size_Get_Bin_Index(...)
 #define FREE_TABLE_SIZE 0x10
-// Takes block_size and returns index of the free list bin it should be or is
-// placed in.
-size_t
-Size_Get_Bin_Index(size_t block_size)
-{
-    size_t MIN_BLOCK_SIZE = 0x2;
-    // index             0,     1,     2,     3, ...,
-    // block size    4+2*0, 4+2*1, 4+2*2, 4+2*3, ...,
-    return MIN((block_size - MIN_BLOCK_SIZE) / 2, FREE_TABLE_SIZE - 1);
-}
+
+// The function takes block_size and returns index of the free list bin it
+// should be in.
+// Possible values: Linear_Binning, Exponential_Binning, Hybrid_Binning,
+// Range_Binning, and you can also define your own function
+#define Size_Get_Bin_Index Linear_Binning
 ```
 
 These customizations can be mixed and matched in different combinations. For
