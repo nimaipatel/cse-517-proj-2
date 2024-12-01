@@ -29,7 +29,7 @@ static const Char8 *traces[] = {
     // https://github.com/munificent/craftinginterpreters/ running
     // test/benchmark/trees.lox refer readme.txt to see how to run generate
     // trace for your own program
-    // "traces/clox-trees-lox.rep"
+    "traces/clox-trees-lox.rep"
 };
 #define NUM_TRACES (sizeof(traces) / sizeof(*traces))
 
