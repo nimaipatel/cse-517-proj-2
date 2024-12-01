@@ -10,6 +10,8 @@ void *M_realloc(void *ptr, size_t size);
 void *M_calloc(size_t nmemb, size_t size);
 bool M_Init(void);
 
+#define MIN_BLOCK_SIZE 2
+
 // use for defining FREE_LIST_INSERT_STRATEGY compile time value...
 #define FILO 0
 #define ADDRESS_ORDERED 1

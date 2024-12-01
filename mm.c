@@ -24,8 +24,7 @@
 
 // The smallest free block will at least store a header, footer, two pointers
 // and two words each of which are one word long...
-#define MIN_BLOCK_SIZE 0x2
-static_assert(MIN_BLOCK_SIZE % 2 == 0, "");
+static_assert(MIN_BLOCK_SIZE == 0x2, "");
 
 static Word *free_table[FREE_TABLE_SIZE] = { 0 };
 static_assert(sizeof(free_table) <= 128, "");
