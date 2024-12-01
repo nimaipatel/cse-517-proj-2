@@ -9,6 +9,7 @@
 #include "mm.h"
 #include "memlib.h"
 #include "defines.h"
+#include "config.h"
 
 #ifdef DEBUG
 #define dbg_printf(...) printf(__VA_ARGS__)
@@ -26,13 +27,32 @@
 #define MIN_BLOCK_SIZE 0x2
 static_assert(MIN_BLOCK_SIZE % 2 == 0, "");
 
-// Decided this by trying different values
-// TODO: what could be a better way to decide this?
-#define BEST_FIT_SEARCH_LIMIT 0x10
-
-#define FREE_TABLE_SIZE 0x10
 static Word *free_table[FREE_TABLE_SIZE] = { 0 };
 static_assert(sizeof(free_table) <= 128, "");
+
+#ifndef BEST_FIT_SEARCH_LIMIT
+#error BEST_FIT_SEARCH_LIMIT is not defined...
+#endif
+
+#ifdef MINI_BLOCK_OPTIMIZATION
+#if MINI_BLOCK_OPTIMIZATION != TRUE && MINI_BLOCK_OPTIMIZATION != FALSE
+#error MINI_BLOCK_OPTIMIZATION should be TRUE or FALSE
+#endif
+#else
+#error MINI_BLOCK_OPTIMIZATION is not defined...
+#endif
+
+#ifdef FREE_LIST_INSERT_STRATEGY
+#if FREE_LIST_INSERT_STRATEGY != ADDRESS_ORDERED && FREE_LIST_INSERT_STRATEGY != FILO
+#error FREE_LIST_INSERT_STRATEGY should be ADDRESS_ORDERED or FILO
+#endif
+#else
+#error FREE_LIST_INSERT_STRATEGY is not defined...
+#endif
+
+#ifndef FREE_TABLE_SIZE
+#error FREE_TABLE_SIZE is not defined...
+#endif
 
 static bool Heap_Check(size_t lineno);
 
@@ -64,26 +84,11 @@ align(const size_t x)
 static inline size_t
 Aligned_Word_Size(const size_t size_bytes)
 {
-#ifdef MINI_BLOCK_OPTIMIZATION
+#if MINI_BLOCK_OPTIMIZATION == TRUE
     return MAX(align(size_bytes + sizeof(Word)) / sizeof(Word), MIN_BLOCK_SIZE);
 #else
     return MAX(align(size_bytes + sizeof(Word)) / sizeof(Word), MIN_BLOCK_SIZE + 2);
 #endif // MINI_BLOCK_OPTIMIZATION
-}
-
-// Takes block_size and returns index of the free list bin it should be or is
-// placed in.
-size_t
-Size_Get_Bin_Index(size_t block_size)
-{
-    dbg_assert(block_size % 2 == 0);
-    dbg_assert(block_size >= MIN_BLOCK_SIZE);
-    // TODO: better algorithm for bin sizes, currently using linearly
-    // increasing block sizes...
-
-    // index             0,     1,     2,     3, ...,
-    // block size    4+2*0, 4+2*1, 4+2*2, 4+2*3, ...,
-    return MIN((block_size - MIN_BLOCK_SIZE) / 2, FREE_TABLE_SIZE - 1);
 }
 
 // Make tag from metadata.
@@ -267,7 +272,7 @@ Block_Insert_Free_List(Word *block)
     const size_t bin_index = Size_Get_Bin_Index(block_size);
     Word **head = &free_table[bin_index];
 
-#ifdef ADDRESS_ORDERED_FREE_LIST
+#if FREE_LIST_INSERT_STRATEGY == ADDRESS_ORDERED
     Word *prev = NULL;
     Word *curr = *head;
     while (curr && curr < block) {
@@ -289,7 +294,7 @@ Block_Insert_Free_List(Word *block)
     if (curr && Block_Get_Size(curr) != MIN_BLOCK_SIZE) {
         Block_Set_Prev_Free(curr, block);
     }
-#else
+#elif FREE_LIST_INSERT_STRATEGY == FILO
     if (Block_Get_Size(block) != MIN_BLOCK_SIZE) {
         Block_Set_Prev_Free(block, NULL);
     }
@@ -300,6 +305,8 @@ Block_Insert_Free_List(Word *block)
     }
 
     *head = block;
+#else
+#error unknown FREE_LIST_INSERT_STRATEGY...
 #endif // ADDRESS_ORDERED_FREE_LIST
 }
 
@@ -377,7 +384,7 @@ Block_Alloc(Word *block, const size_t block_size, const size_t alloc_size)
     const bool prev_alloc = Block_Get_Prev_Alloc(block);
     const bool prev_min = Block_Get_Prev_Min(block);
 
-#ifdef MINI_BLOCK_OPTIMIZATION
+#if MINI_BLOCK_OPTIMIZATION == TRUE
     if (block_size - alloc_size < MIN_BLOCK_SIZE) {
 #else
     if (block_size - alloc_size < MIN_BLOCK_SIZE + 2) {

@@ -9,6 +9,47 @@ folder, and can register them in the traces[] array inside main.c.
 Refer to next sections to learn how to generate traces for your own programs and
 run them.
 
+ALLOCATOR CUSTOMIZATIONS
+========================
+
+The allocator can be customized using config.h.
+
+In this experiment we explore:
+1) Different binning strategies for the segregated free lists.
+2) The search limit for free blocks.
+3) A "mini-block optimization" that trades of memory utilization for slower
+   worst case performance.
+4) Different insertion strategies for the lists of free blocks.
+
+
+```
+// possible values: integer, 0 = first-fit
+#define BEST_FIT_SEARCH_LIMIT 0x10
+
+// possible values: TRUE, FALSE
+#define MINI_BLOCK_OPTIMIZATION TRUE
+
+// possible values: ADDRESS_ORDERED, FILO
+#define FREE_LIST_INSERT_STRATEGY FILO
+
+// define a free table and then define the binning strategy in Size_Get_Bin_Index(...)
+#define FREE_TABLE_SIZE 0x10
+// Takes block_size and returns index of the free list bin it should be or is
+// placed in.
+size_t
+Size_Get_Bin_Index(size_t block_size)
+{
+    size_t MIN_BLOCK_SIZE = 0x2;
+    // index             0,     1,     2,     3, ...,
+    // block size    4+2*0, 4+2*1, 4+2*2, 4+2*3, ...,
+    return MIN((block_size - MIN_BLOCK_SIZE) / 2, FREE_TABLE_SIZE - 1);
+}
+```
+
+These customizations can be mixed and matched in different combinations. For
+this experiment, we use one configuration as a control and then modify other
+properties to observe their effect.
+
 
 GENERATING TRACES FOR YOUR OWN PROGRAMS
 =======================================
