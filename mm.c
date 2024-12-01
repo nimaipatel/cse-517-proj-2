@@ -9,7 +9,7 @@
 #include "mm.h"
 #include "memlib.h"
 #include "defines.h"
-// #include "config.h"
+#include "config.h"
 
 #ifdef DEBUG
 #define dbg_printf(...) printf(__VA_ARGS__)

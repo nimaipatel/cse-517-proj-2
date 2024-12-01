@@ -9,7 +9,7 @@
 #include "trace_parser.h"
 #include "trace.h"
 #include "csv.h"
-// #include "config.h"
+#include "config.h"
 
 static Char8 *traces[] = {
     // These are traces from CMU malloc lab, used in this project with
