@@ -557,7 +557,11 @@ M_realloc(void *ptr, const size_t size)
     Word *block = (Word *)ptr - 1;
     const size_t old_size = Block_Get_Size(block);
 
-    if (aligned_size <= old_size) {
+    if (aligned_size == old_size) {
+        return ptr;
+    }
+
+    if (aligned_size < old_size) {
         // we are shrinking (or maintaining) block size...
         Block_Alloc(block, Block_Get_Size(block), aligned_size);
         return ptr;
