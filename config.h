@@ -18,3 +18,6 @@
 // Possible values: Linear_Binning, Exponential_Binning, Hybrid_Binning,
 // Range_Binning, and you can also define your own function
 #define Size_Get_Bin_Index Linear_Binning
+
+// name of the CSV file where statistics will be dumped
+#define RUN_NAME "output"

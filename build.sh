@@ -20,6 +20,7 @@ SRC+=" memlib.c"
 SRC+=" perf.c"
 SRC+=" vec_u64.c"
 SRC+=" string.c"
+SRC+=" csv.c"
 
 if [ "$1" = "debug" ]; then
     $CC $FLAGS $DEV_FLAGS $SRC -o main
