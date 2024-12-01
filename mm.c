@@ -76,7 +76,6 @@ Aligned_Word_Size(const size_t size_bytes)
 size_t
 Size_Get_Bin_Index(size_t block_size)
 {
-    return 0;
     dbg_assert(block_size % 2 == 0);
     dbg_assert(block_size >= MIN_BLOCK_SIZE);
     // TODO: better algorithm for bin sizes, currently using linearly
